@@ -1,0 +1,31 @@
+# Config for `msld_prep_cli.py build` -- step 2 of 2 -- reproducing the
+# 34-ligand congeneric cluster from examples/2_ChEMBL, following
+# chembl_congeneric_from_files.yaml's step 1 output. See that file's
+# comment for background (34 ligands, 3 sites, 102 blocks, phenylamino-
+# quinazoline scaffold).
+#
+# Run with:
+#   python msld_prep_cli.py build --config configs/chembl_congeneric_build.yaml
+
+sysname: chembl_congeneric
+
+checkpoint: work.chembl_congeneric/MCS_for_MSLD.txt
+aligned_dir: work.chembl_congeneric/aligned
+
+outdir: build.chembl_congeneric
+
+cgenff: true
+
+# in_frag:
+#   - []
+#   - []
+#   - []
+# an_core:
+#   - []
+#   - []
+#   - []
+
+# prm_search_dir: work.chembl_congeneric/aligned
+toppar_search_dir: ../examples/2_ChEMBL
+
+log_level: INFO

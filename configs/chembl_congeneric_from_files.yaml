@@ -1,0 +1,55 @@
+# Config for `msld_prep_cli.py from-files` -- step 1 of 2 -- reproducing
+# the 34-ligand congeneric cluster from examples/2_ChEMBL originally built
+# as build.chembl_congeneric/ (phenylamino-quinazoline scaffold,
+# `c1ccc(Nc2ncnc3ccccc23)cc1`, found via Murcko scaffold clustering across
+# the full 86-ligand example set -- the full set is NOT congeneric enough
+# to produce an unambiguous shared core on its own).
+#
+# Run with:
+#   python msld_prep_cli.py from-files --config configs/chembl_congeneric_from_files.yaml
+#   python msld_prep_cli.py build --config configs/chembl_congeneric_build.yaml
+
+sysname: chembl_congeneric
+base_dir: ../examples/2_ChEMBL
+
+reference: "11896"
+analogs:
+  - "10749"
+  - "11738"
+  - "11774"
+  - "13061"
+  - "13409"
+  - "13770"
+  - "15342"
+  - "15405"
+  - "17206"
+  - "175"
+  - "17631"
+  - "17933"
+  - "20185"
+  - "2202"
+  - "2574"
+  - "3978"
+  - "4433"
+  - "5126"
+  - "5599"
+  - "6271"
+  - "6299"
+  - "6744"
+  - "6875"
+  - "7179"
+  - "7196"
+  - "7395"
+  - "8096"
+  - "8351"
+  - "8492"
+  - "8711"
+  - "9439"
+  - "9538"
+  - "9842"
+
+work_dir: work.chembl_congeneric
+# checkpoint: work.chembl_congeneric/MCS_for_MSLD.txt
+# aligned_dir: work.chembl_congeneric/aligned
+
+log_level: INFO

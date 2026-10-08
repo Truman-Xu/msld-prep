@@ -1,0 +1,81 @@
+auto angle dihe  !! do not call after deleting sub-sub terms or loading in water
+bomblev -1
+
+! delete angles and dihedrals between alchem groups
+set ii = 1
+label deletesiteloop
+if @ii .le. @nsites then
+
+   set jj = 1
+   label delete1loop
+   if @jj .le. @nsubs@@ii then
+
+      calc kk = @jj + 1
+      label delete2loop
+      if @kk .le. @nsubs@@ii then
+
+         dele connectivity sele ( site@{ii}_sub@@jj ) show end sele ( site@{ii}_sub@@kk ) show end
+         calc kk = @kk + 1
+         goto delete2loop
+      endif
+
+      calc jj = @jj + 1
+      goto delete1loop
+   endif
+
+   calc ii = @ii + 1
+   goto deletesiteloop
+endif
+
+!! ! System specific deletion (linear groups)
+!! dele dihe sele (atom LIG 1 ATOMNAME) show end
+
+!! Load solvent
+read sequ pdb name @builddir/solvent.pdb
+generate WT00 first none last none setup noangl nodihe
+read coor pdb resid name @builddir/solvent.pdb
+
+!! !! Load ions
+!! read sequ pdb name @builddir/ions.pdb
+!! generate HETA first none last none setup noangl nodihe
+!! read coor pdb resid name @builddir/ions.pdb
+
+print coor sele .not. init end
+
+bomblev 0
+
+!! !! Write Initial System to Disk
+!! write psf card name patch.psf
+!! * patch psf file
+!! *
+!! write coor pdb card name patch.pdb
+!! * patch pdb file
+!! *
+!! write coor card name patch.crd
+!! * patch crd file
+!! *
+
+!! Create water box & periodic images
+coor stat
+crystal define cubic @box @box @box 90. 90. 90.
+crystal build cutoff 14 nope 0
+image byres xcen 0 ycen 0 zcen 0 sele resn tip3 .or. resn sod .or. resn cla end
+image byseg xcen 0 ycen 0 zcen 0 sele .not. ( resn tip3 .or. resn sod .or. resn cla ) end
+
+!! Copy main coords into comp set
+cons harm clear
+coor copy comp
+
+! LDBI math: for every "pair" there are 5 ldbi's
+set ii = 1
+set ldbibias = 0
+label ldbimathloop
+if @ii .le. @nsites then
+   calc ldbibias = @ldbibias + ( ( @nsubs@@ii * (@nsubs@@ii - 1) / 2 ) * 5 )
+   INCR ii by 1
+   goto ldbimathloop
+endif
+set charge = ?cgtot
+
+calc blockplusone = @nblocks + 1
+

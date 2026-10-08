@@ -1,0 +1,62 @@
+# Example config for `msld_prep_cli.py build` -- step 2 of 2: read a
+# common-core definition written by `from-files` or `from-smiles` (review
+# or hand-edit the checkpoint file first if you want to), then renormalize
+# charges and write every CHARMM/ALF file.
+#
+# Run with:
+#   python msld_prep_cli.py build --config configs/build_example.yaml
+#
+# Any key here can still be overridden on the command line for a one-off
+# run, e.g.:
+#   python msld_prep_cli.py build --config configs/build_example.yaml --outdir build.override
+#
+# Ligand names (reference + analogs) are read directly from the checkpoint
+# file -- there's no --reference/--analogs to repeat here.
+#
+# This example points at from_files_example.yaml's output; to build from
+# from_smiles_example.yaml's output instead, change checkpoint/aligned_dir
+# to work.fxa_smiles/... and sysname to fxa_smiles.
+
+sysname: fxa
+
+# Written by from-files/from-smiles (see their example configs' work_dir).
+checkpoint: work.fxa/MCS_for_MSLD.txt
+aligned_dir: work.fxa/aligned
+
+# Output directory for the MSLD build. Default if omitted: build.<sysname>
+# If the checkpoint holds more than one CORE ID (from-files/from-smiles's
+# similarity_threshold split the analogs into separate core groups), every
+# group is built automatically, each into its own outdir/core<N>/
+# subdirectory. To build just one, set core_id below.
+outdir: build.fxa
+
+# core_id: 1
+
+# Are CGenFF/ParamChem parameters being used?
+cgenff: true
+
+# Reflig core atoms to move into each fragment at each site -- one list per
+# site, in site order. Omit (or leave commented out) to use the default
+# (only each site's anchor atom(s) move out of the core).
+# in_frag:
+#   - ["N7"]     # site 1: also move N7 into the site-1 fragment
+#   - []         # site 2: no extra atoms
+#   - []         # site 3: no extra atoms
+
+# Anchor atoms to keep in the core at each site during charge
+# renormalization (otherwise every site's anchor atom(s) move into the
+# fragment by default). Same one-list-per-site shape as in_frag.
+# an_core:
+#   - []
+#   - []
+#   - []
+
+# Directory to search for each ligand's .prm file. Default if omitted: aligned_dir
+# prm_search_dir: work.fxa/aligned
+
+# Directory to copy toppar/ files from when cgenff is true -- typically
+# wherever --base-dir/--reference-dir pointed at in step 1. Default if
+# omitted: the current directory.
+toppar_search_dir: ../examples/2_ChEMBL
+
+log_level: INFO

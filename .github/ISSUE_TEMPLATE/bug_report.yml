@@ -1,0 +1,26 @@
+name: Bug report
+description: Something fails or gives wrong output
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: msldprep, Python and RDKit versions
+      placeholder: "msldprep 0.1.0, Python 3.12, RDKit 2026.09.1"
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Ligands and config
+      description: SMILES or the mol2/rtf/prm files, and the YAML config or command line used.
+    validations:
+      required: true
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Traceback or wrong output
+      description: If the output is scientifically wrong rather than an error (charges, core, site or fragment assignment, parameters), say what you expected and how you checked.
+      render: text
+    validations:
+      required: true

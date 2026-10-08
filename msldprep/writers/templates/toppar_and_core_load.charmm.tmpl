@@ -1,0 +1,24 @@
+bomblev -2
+
+!! Read in toppar stream file
+stream @builddir/toppar.str
+
+read rtf append card name @builddir/core.rtf
+read param flex append card name @builddir/full_ligand.prm
+
+!! !! Reads coordinates and pdb file for the protein
+!! read sequ pdb name @builddir/protein.pdb
+!! generate SEGID first NTER last CTER setup warn
+!! read coor pdb resid name @builddir/protein.pdb
+!!
+!! ic generate
+!! ic param
+!! ic build
+!! hbuild sele hydrogen end
+!! auto angle dihe
+
+!! Reads coordinates and pdb file for the ligand
+read sequ pdb name @builddir/core.pdb
+generate @ligseg setup
+read coor pdb resid name @builddir/core.pdb
+

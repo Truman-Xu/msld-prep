@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "msld-prep"
+version = "0.1.0"
+authors = [
+  { name="Truman Xu", email="ziqiaoxu@umich.edu" },
+]
+description = "RDKit-based ligand preparation for multisite lambda dynamics (MSLD) in CHARMM"
+readme = "README.md"
+license = {text = "GPL-3.0-or-later"}
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24",
+    "rdkit>=2023.9",
+    "pyyaml>=6",
+    "crimm",          # latest PyPI release for now; pin once the crimm overhaul is done
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Development Status :: 2 - Pre-Alpha",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Truman-Xu/msld-prep"
+"Bug Tracker" = "https://github.com/Truman-Xu/msld-prep/issues"
+
+[project.optional-dependencies]
+# pandas is needed only by the unmodified legacy msld_prm.py that one test imports.
+test = ["pytest>=7", "pandas"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["msldprep*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+msldprep = ["writers/templates/*.tmpl"]

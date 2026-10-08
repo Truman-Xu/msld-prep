@@ -1,0 +1,10 @@
+__pycache__/
+.ipynb_checkpoints/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.vscode/
+# Run output of msld_prep_cli.py and the run_msld_prep*.py scripts
+build.*/
+work.*/

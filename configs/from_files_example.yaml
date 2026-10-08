@@ -1,0 +1,60 @@
+# Example config for `msld_prep_cli.py from-files` -- step 1 of 2 (define
+# the common core; see build_example.yaml for step 2).
+#
+# Run with:
+#   python msld_prep_cli.py from-files --config configs/from_files_example.yaml
+#
+# Any key here can still be overridden on the command line for a one-off
+# run, e.g.:
+#   python msld_prep_cli.py from-files --config configs/from_files_example.yaml --work-dir work.override
+#
+# This particular example reproduces run_msld_prep.py's default run against
+# the examples/2_ChEMBL fixture set.
+
+# Used only to compute the default work_dir below (work.<sysname>); not
+# passed to the pipeline itself.
+sysname: fxa
+
+# Directory with {name}.mol2 / {name}.rtf / {name}.prm for every ligand below.
+base_dir: ../examples/2_ChEMBL
+
+reference: "11896"
+analogs:
+  - "10749"
+  - "10322"
+  - "10870"
+# Instead of listing names, "*" includes every {stem}.mol2 in base_dir that
+# has a matching {stem}.str (CGenFF's own combined-topology-and-parameter
+# stream file), except reference; a .mol2 with no matching .str logs a
+# warning and is skipped, as does any discovered ligand that then fails to
+# actually load (bad mol2, .str present but never split into .rtf/.prm,
+# etc.) -- useful for a directory you already know is congeneric, or just
+# to see what's there. On the command line, quote it: --analogs '*' (an
+# unquoted * is expanded by your shell before Python ever sees it).
+# analogs: "*"
+
+# Directory for this step's output. Default if omitted: work.<sysname>
+work_dir: work.fxa
+
+# Where the human-editable core/site/fragment assignment is written.
+# Default if omitted: <work_dir>/MCS_for_MSLD.txt
+# checkpoint: work.fxa/MCS_for_MSLD.txt
+
+# Where each ligand's ALIGNED mol2/rtf/prm is written -- `build` reads
+# ligands from here, not from base_dir, so it picks up the exact aligned
+# conformer this step computed (see pipeline.py's module docstring for why
+# that matters: RDKit's constrained embedding isn't perfectly
+# deterministic, so a fresh re-alignment in step 2 could differ slightly).
+# Default if omitted: <work_dir>/aligned
+# aligned_dir: work.fxa/aligned
+
+# Tanimoto/Morgan similarity cutoff for splitting analogs into their own
+# core group(s) instead of forcing one global shared core across every
+# analog. An analog too structurally different from the reference (and
+# from every other leftover analog) gets excluded rather than dragging the
+# reference's core down to a tiny fragment -- see msldprep/grouping.py.
+# Default if omitted: 0.7. Set to 0 to disable grouping entirely (always
+# one global core, matching pre-grouping behavior).
+# similarity_threshold: 0.7
+
+log_level: INFO
