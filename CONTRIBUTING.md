@@ -23,9 +23,12 @@ reason, unless you point to it:
 ```bash
 export MSLDPREP_CGENFF_PATH=/export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/cgenff
 export MSLDPREP_CGENFF_BASE_PRM=...   # only if par_all36_cgenff.prm is not next to the program
+export MSLDPREP_OBABEL_PATH=/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel   # validation oracle
 ```
 
-If the variable is unset, `cgenff` on `PATH` is used. One test also imports the unmodified
+If a variable is unset, `cgenff` or `obabel` on `PATH` is used; failing that, the tests that
+need it skip. The command-line tool and `run_msld_prep_from_smiles.py` read the same CGenFF
+variables. No install path belongs in source or in example configs. One test also imports the unmodified
 legacy `msld_prm.py` from a sibling checkout, `../msld-py-prep`.
 
 ## Run the tests

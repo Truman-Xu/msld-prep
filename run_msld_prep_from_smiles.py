@@ -19,8 +19,9 @@ existing CGenFF-parameterized structure); analogs need only a name and a
 SMILES string -- everything else is generated.
 
 Requires a local install of CGenFF (the standalone `cgenff` binary, not the
-ParamChem web service), for atom typing/parameterization by analogy. Update
-`cgenff`/`cgenff_base_prm` below to match your installation.
+ParamChem web service), for atom typing/parameterization by analogy. Point to it
+with the environment variable MSLDPREP_CGENFF_PATH (the program) and, optionally,
+MSLDPREP_CGENFF_BASE_PRM (its par_all36_cgenff.prm; default: the file next to the program).
 """
 
 import logging
@@ -55,9 +56,13 @@ analog_smiles = {
 in_frag = None
 an_core = None
 
+cgenff_bin = os.environ.get("MSLDPREP_CGENFF_PATH")
+if not cgenff_bin:
+    raise SystemExit("Set MSLDPREP_CGENFF_PATH to the standalone cgenff program.")
 tools = analog_prep.ExternalTools(
-    cgenff="/export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/cgenff",
-    cgenff_base_prm="/export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/par_all36_cgenff.prm",
+    cgenff=cgenff_bin,
+    cgenff_base_prm=os.environ.get("MSLDPREP_CGENFF_BASE_PRM")
+    or os.path.join(os.path.dirname(cgenff_bin), "par_all36_cgenff.prm"),
 )
 
 #####################################################################

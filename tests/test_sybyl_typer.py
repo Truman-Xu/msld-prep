@@ -8,9 +8,12 @@ from rdkit.Chem import AllChem
 
 from msldprep import sybyl_typer
 
-OBABEL = "/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel"
+# The obabel program (used here only as a validation oracle) is found through
+# MSLDPREP_OBABEL_PATH, else on PATH.
+OBABEL = os.environ.get("MSLDPREP_OBABEL_PATH") or shutil.which("obabel") or ""
 requires_obabel = pytest.mark.skipif(
-    not os.path.exists(OBABEL), reason="obabel not found at the expected local install path (used here only as a validation oracle)"
+    not os.path.isfile(OBABEL),
+    reason="obabel not found: set MSLDPREP_OBABEL_PATH or put obabel on PATH (used here only as a validation oracle)",
 )
 
 
@@ -222,8 +225,7 @@ BATTERY = {
 
 def _obabel_env():
     env = dict(os.environ)
-    obabel_path = shutil.which(OBABEL) or OBABEL
-    prefix = os.path.dirname(os.path.dirname(os.path.abspath(obabel_path)))
+    prefix = os.path.dirname(os.path.dirname(os.path.abspath(OBABEL)))
     lib_dirs = [os.path.join(prefix, "lib"), os.path.join(prefix, "lib64")]
     existing = env.get("LD_LIBRARY_PATH", "")
     env["LD_LIBRARY_PATH"] = ":".join([*lib_dirs, existing]) if existing else ":".join(lib_dirs)

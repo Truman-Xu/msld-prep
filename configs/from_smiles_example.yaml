@@ -57,12 +57,14 @@ work_dir: work.fxa_smiles
 # aligned_dir: work.fxa_smiles/aligned
 
 # Path to the standalone cgenff binary (not the ParamChem web service).
-# Default if omitted: "cgenff" (must then be on PATH).
-cgenff_bin: /export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/cgenff
+# Default if omitted: the environment variable MSLDPREP_CGENFF_PATH, else
+# "cgenff" (must then be on PATH).
+# cgenff_bin: /path/to/cgenff
 
-# CGenFF's own base parameter file, passed as `-p charmm <file>`. Omit to
-# skip (cgenff will then rely solely on its own rule-file analogies).
-cgenff_base_prm: /export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/par_all36_cgenff.prm
+# CGenFF's own base parameter file, passed as `-p charmm <file>`. Default if
+# omitted: the environment variable MSLDPREP_CGENFF_BASE_PRM, else skipped
+# (cgenff will then rely solely on its own rule-file analogies).
+# cgenff_base_prm: /path/to/par_all36_cgenff.prm
 
 # Tanimoto/Morgan similarity cutoff for splitting analogs into their own
 # core group(s) instead of forcing one global shared core across every

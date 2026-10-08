@@ -243,8 +243,8 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
         help="Directory for each ligand's aligned sdf/rtf/prm, which `build` reads from later. "
              "Default: <work-dir>/aligned",
     )
-    from_smiles.add_argument("--cgenff-bin", help="Path to the standalone cgenff binary (default: cgenff)")
-    from_smiles.add_argument("--cgenff-base-prm", help="Path to CGenFF's base .prm file (passed as `-p charmm`)")
+    from_smiles.add_argument("--cgenff-bin", help="Path to the standalone cgenff binary (default: $MSLDPREP_CGENFF_PATH, else `cgenff` on PATH)")
+    from_smiles.add_argument("--cgenff-base-prm", help="Path to CGenFF's base .prm file, passed as `-p charmm` (default: $MSLDPREP_CGENFF_BASE_PRM, else omitted)")
     from_smiles.add_argument(
         "--similarity-threshold", type=float,
         help="Tanimoto/Morgan similarity cutoff for splitting analogs into per-group shared "
@@ -447,7 +447,10 @@ def _run_from_smiles(args: argparse.Namespace) -> int:
     work_dir = args.work_dir or f"work.{args.sysname}"
     checkpoint = args.checkpoint or os.path.join(work_dir, "MCS_for_MSLD.txt")
     aligned_dir = args.aligned_dir or os.path.join(work_dir, "aligned")
-    tools = analog_prep.ExternalTools(cgenff=args.cgenff_bin or "cgenff", cgenff_base_prm=args.cgenff_base_prm)
+    tools = analog_prep.ExternalTools(
+        cgenff=args.cgenff_bin or os.environ.get("MSLDPREP_CGENFF_PATH") or "cgenff",
+        cgenff_base_prm=args.cgenff_base_prm or os.environ.get("MSLDPREP_CGENFF_BASE_PRM"),
+    )
 
     analog_smiles = _parse_smiles_file(args.analog_smiles_file) if args.analog_smiles_file else {}
     if args.analog_smiles:  # from the CLI: ["NAME=SMILES", ...] -> {NAME: SMILES}; overrides the file on a name clash

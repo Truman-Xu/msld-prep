@@ -19,11 +19,14 @@ The rules that matter most, in case you read nothing else:
   session.
 - Sign commits, never files: a `Co-Authored-By:` trailer naming your exact model; no author
   names, banners or session notes in any file.
+- `/home/ziqiaoxu/msld-prep-tools` is a symlink to this directory and is published to other
+  cluster users. Never remove or repoint it.
 - Do not edit anything in `/home/ziqiaoxu/crimm`, `/home/ziqiaoxu/crimm-ml` or
   `/home/ziqiaoxu/msld-py-prep`. They are separate projects. This project only reads them. If
   a change is needed there, say so in your handoff entry and let the owner decide.
 - Default test run: `pytest -p no:cacheprovider -q` (about 15 s). CGenFF-backed tests skip
-  unless `MSLDPREP_CGENFF_PATH` is set; a skipped test is not a pass. Python and environment
+  unless `MSLDPREP_CGENFF_PATH` is set, and OpenBabel-backed ones unless `MSLDPREP_OBABEL_PATH`
+  is (or `obabel` is on `PATH`); a skipped test is not a pass. Python and environment
   details are in the handoff, section 3. The env to use, `crimm-dev`, is not on `PATH`.
 - Library code logs or raises; it does not `print`. Raise a subclass of `MsldPrepError`
   (`msldprep/errors.py`). Do not use `assert` to validate input.

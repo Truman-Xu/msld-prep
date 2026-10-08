@@ -21,7 +21,7 @@ pip install -e ".[test]" --no-deps
 ```
 
 The Python package is `msldprep`. The CGenFF program is needed for the SMILES path and is
-installed separately; the tests find it through `MSLDPREP_CGENFF_PATH` (see CONTRIBUTING.md).
+installed separately; the tool and the tests find it through `MSLDPREP_CGENFF_PATH` (see CONTRIBUTING.md).
 
 ## License
 
