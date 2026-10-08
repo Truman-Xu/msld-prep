@@ -63,9 +63,10 @@ suggestion to decide on and not a clear win, it says so.
 - **Invariants.** Cheap properties that hold for any input: total charge is conserved,
   every fragment atom has exactly one owner, write-then-read returns the same records.
 - **Regression.** Every bug fix adds the test that would have caught it.
-- **Notebooks.** `align.ipynb` is committed, with its outputs, at the owner's request
-  (2026-10-08). It is 8.9 MB; do not add further executed notebooks without asking, and
-  consider stripping outputs from it later (suggestion: `nbstripout`).
+- **Notebooks.** A notebook goes in the repository only if it holds no unpublished structure
+  and has its outputs stripped (`nbstripout` as a pre-commit hook is a suggestion). Read inputs
+  from paths relative to the notebook, never from another user's directory. `align.ipynb`
+  works on the lab's unpublished series and is not committed.
 
 ## Scientific validity and reproducibility
 

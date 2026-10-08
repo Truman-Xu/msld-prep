@@ -109,10 +109,14 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-08 | The owner will later have an agent log this project in crimm's handoff docs so other agents know it exists. | `[told]` |
 | 2026-10-08 | Licence is GPLv3. | `[told]` |
 | 2026-10-08 | The project is named `msld-prep`; its remote is `https://github.com/Truman-Xu/msld-prep.git`. The importable package stays `msldprep` `[inferred: a hyphen cannot be in an import name]`. | `[told]` |
-| 2026-10-08 | `build.*/` and `work.*/` are never committed and are in `.gitignore`. `align.ipynb` is committed. The owner decides later about the other loose files (`cellz*.yaml`, `sil.*`, `analogues.txt`, `examples/`, `TODO.md`). | `[told]` |
-| 2026-10-08 | The first commit is a snapshot. | `[told]` |
+| 2026-10-08 | `build.*/` and `work.*/` are never committed and are in `.gitignore`. The owner decides later about `TODO.md`. | `[told]` |
+| 2026-10-08 | **Do not publish the structures of the analogs.** The lab's analog series is unpublished. Never commit, push, or paste into docs, tests, issues, PRs or commit messages any file or output that contains those structures: `align.ipynb`, `analogues.txt`, `sil.*`, `cellz*.yaml`, or anything built from them. The owner may name more. | `[told]` |
+| 2026-10-08 | `align.ipynb` is not committed. It was removed from the local commits, and the history rewritten, before anything was pushed. The first commit is a snapshot. | `[told]` |
+| 2026-10-08 | `examples/` is committed. | `[told]` |
+| 2026-10-08 | The directory is `/home/ziqiaoxu/msld-prep`, and `/home/ziqiaoxu/msld-prep-tools` stays as a symbolic link to it, because the old path was published to other users of the cluster and is being tested by the lab. Never remove or repoint that link. | `[told]` |
+| 2026-10-08 | Keep `crimm-dev` (which carries the local editable crimm, not the PyPI release) as the working env for now. | `[told]` |
+| 2026-10-08 | Install paths of CGenFF and OpenBabel come from environment variables, never from source or example configs. | `[told]` |
 | 2026-10-08 | Use the latest PyPI release of crimm for now; pin a version after the crimm overhaul. | `[told]` |
-| 2026-10-08 | The CGenFF path in the tests comes from an environment variable. | `[told]` |
 | 2026-10-08 | The working env is `crimm-dev` if it satisfies every dependency of this project. It does (see section 3). | `[told]` |
 
 Working agreements carried over from crimm (not owner instructions for this project; change
@@ -138,7 +142,7 @@ specific to it.
 | `crimm-dev` has every import the package and tests use: rdkit, numpy, yaml, pytest, pandas, openbabel, scipy, crimm, `crimm.IO.RTFParser`, `crimm.IO.PRMParser`. So no `environment-dev.yml` exists in this repo; I deleted the unbuilt one I had written. | `[ran 2026-10-08]` |
 | `crimm-dev` has crimm 2024.7a2 installed editable from `/home/ziqiaoxu/crimm` (the local `pyproject.toml` says 2026.2.1), not the PyPI release. | `[ran 2026-10-08]` pip list |
 | The suite also passes, 136 passed, against the latest PyPI crimm (2026.2.2, wheel installed with `--no-deps` into a scratch directory and put first on `PYTHONPATH`). | `[ran 2026-10-08]` |
-| `tests/test_analog_prep.py` finds CGenFF through `MSLDPREP_CGENFF_PATH`, else `cgenff` on `PATH`. The base prm is `MSLDPREP_CGENFF_BASE_PRM`, else `par_all36_cgenff.prm` beside the program. With neither found, the 5 tests that need it skip. The install that works here is `/export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/cgenff`; crimm's handoff names a different one (`.../src/2026/silcsbio.2026.1-alpha/...`). | `[ran 2026-10-08]` |
+| Tools are found through environment variables, else `PATH`: `MSLDPREP_CGENFF_PATH` (program), `MSLDPREP_CGENFF_BASE_PRM` (base prm; default `par_all36_cgenff.prm` beside the program; the root script and tests use that default, the CLI omits `-p` if unset), `MSLDPREP_OBABEL_PATH` (obabel). With none found, 5 CGenFF tests and 53 OpenBabel tests skip. Installs that work here: `/export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/cgenff` and `/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel`; crimm's handoff names a different CGenFF (`.../src/2026/silcsbio.2026.1-alpha/...`). `obabel` is not on `PATH` in a non-activated shell. | `[ran 2026-10-08]` |
 | `tests/test_writers.py::test_downstream_msld_prm_contract` imports `msld_prm` from `/home/ziqiaoxu/msld-py-prep` and runs it. | `[read]`, `[ran]` passes |
 | Branch `main`; remote `origin` is `https://github.com/Truman-Xu/msld-prep.git`, added locally, never fetched or pushed. | `[ran 2026-10-08]` |
 
@@ -147,8 +151,9 @@ Commands that work `[ran 2026-10-08]`:
 ```bash
 PY=/home/ziqiaoxu/.conda/envs/crimm-dev/bin/python
 export MSLDPREP_CGENFF_PATH=/export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/cgenff
+export MSLDPREP_OBABEL_PATH=/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel
 $PY -B -m pytest -p no:cacheprovider -q        # 136 passed, 0 skipped, about 11 s
-env -u MSLDPREP_CGENFF_PATH $PY -B -m pytest -p no:cacheprovider -q tests/test_analog_prep.py   # 1 passed, 5 skipped
+env -u MSLDPREP_CGENFF_PATH -u MSLDPREP_OBABEL_PATH $PY -B -m pytest -p no:cacheprovider -q   # 78 passed, 58 skipped
 ```
 
 ## 4. Gotchas
@@ -164,11 +169,13 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G5 | CGenFF atom types are carried on RDKit atoms as the `CGENFFAtomType` property and grouped via isotope labels starting at 300 (`align.py`). Do not use isotopes for anything else in this package. | `[read]` |
 | G6 | `msldprep/sybyl_typing_data.py` is generated from `data/atomtyp.txt` and `data/types.txt`. Edit the generator or inputs, then rerun it. | `[read]` |
 | G7 | Docstrings and configs still say `rewrite/msld_prep_cli.py` and `rewrite/scripts/...`, from when this code lived in a `rewrite/` directory. Four matches in `.py` and `.yaml` files. The real paths have no `rewrite/`. | `[ran grep 2026-10-08]` |
-| G8 | Untracked does not mean disposable. `build.*/` and `work.*/` are git-ignored now but still hold the owner's runs; do not delete them. `cellz*.yaml`, `sil.*`, `analogues.txt`, `TODO.md` and `examples/` are untracked pending the owner's decision (Q3); do not delete, move, commit or ignore them without asking. | `[inferred]` |
+| G8 | Untracked does not mean disposable. `build.*/` and `work.*/` are git-ignored but still hold the owner's runs; do not delete them. `TODO.md` is untracked pending the owner's decision. | `[inferred]` |
 | G9 | Other sessions may edit `docs/dev/*.md` concurrently. Re-read a file immediately before editing it, and make targeted edits, never whole-file rewrites. | `[inferred: same hazard recorded in crimm's handoff]` |
 | G10 | `test_downstream_msld_prm_contract` puts `/home/ziqiaoxu/msld-py-prep` on `sys.path` and emits pandas `ChainedAssignmentError` warnings from that legacy file. The warnings are in legacy code, not in this repo. | `[ran 2026-10-08]` |
-| G11 | The first commit does not contain `examples/2_ChEMBL`, which `tests/conftest.py` loads. A fresh clone of that commit fails most tests until the owner decides Q3. | `[inferred: conftest.py reads it; not tested from a clone]` |
-| G12 | Hard-coded install paths remain outside the CGenFF test fix: OpenBabel `/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel` in `tests/test_sybyl_typer.py` (the test skips if absent), and the CGenFF path in `run_msld_prep_from_smiles.py`, `configs/from_smiles_example.yaml` and the untracked `cellz.yaml`. | `[ran grep 2026-10-08]` |
+| G11 | `/home/ziqiaoxu/msld-prep-tools` is a symlink to `/home/ziqiaoxu/msld-prep` (published to cluster users; see standing instructions). Use the new path in docs and new scripts; do not break the link. | `[told 2026-10-08]`, `[ran]` |
+| G12 | The owner's untracked files `align.ipynb`, `analogues.txt`, `sil.mol2`, `sil.prm`, `sil.rtf`, `cellz.yaml` and `cellz_build.yaml` belong to the unpublished analog series (the notebook holds its structures, `analogues.txt` lists them, `cellz*.yaml` point to them). They are listed in `.git/info/exclude`, so `git add .` skips them. That file is local; a fresh clone has no such protection. `cellz.yaml` also holds a CGenFF install path. | `[read]` heads of the files, `[ran]` exclude |
+| G13 | `align.ipynb` reads its inputs from absolute paths in another lab member's directory, and was run only as far as cell 9. There it fails: `crimm/Adaptors/RDKitConverter.py::heterogen_to_rdkit` reads `het_res.pdbx_description`, which a `Residue` read from a CRD file lacks. The owner's hotfix is commit `8075b75` on crimm's local branch `RDKConverter-Het`, not the checked-out branch (`cleanup/phase0-tests-and-dev-docs`). Cells after 9 were not run. | `[ran 2026-10-08]` failure; `[inferred]` cause |
+| G14 | Rewriting history (`git filter-branch`, then `gc --prune=now`) was done on 2026-10-08 while nothing was pushed. Once anything is pushed, that is no longer a clean undo: a published structure stays in forks and caches. Check `git diff --cached --stat` and the file list before every push. | `[ran]` |
 
 ## 5. State
 
@@ -178,23 +185,24 @@ Rewrite in place. True as of `2026-10-08`.
 git:
   branch: main
   remote: origin https://github.com/Truman-Xu/msld-prep.git   # not pushed
-  commits: one local snapshot commit, made 2026-10-08 at the owner's request (see git log)
+  commits: three local commits (history rewritten 2026-10-08, G14): snapshot, ChEMBL examples,
+           environment variables for tool paths
   pushed: false                    # the owner has not asked to push
-tracked_in_snapshot:
+tracked:
   - AGENTS.md, CLAUDE.md, CONTRIBUTING.md, README.md, LICENSE (GPLv3, copied from crimm's)
   - pyproject.toml, .gitignore, .github/
   - docs/dev/AGENT_HANDOFF.md, docs/dev/BEST_PRACTICES.md
-  - msldprep/, tests/, scripts/, data/, configs/
+  - msldprep/, tests/, scripts/, data/, configs/, examples/2_ChEMBL
   - msld_prep_cli.py, run_msld_prep.py, run_msld_prep_from_smiles.py
-  - align.ipynb                    # 8.9 MB with outputs, at the owner's request
-untracked_awaiting_owner_decision: # Q3
-  - examples/                      # 13 MB; the tests need examples/2_ChEMBL (G11)
-  - cellz.yaml
-  - cellz_build.yaml
+excluded_locally_unpublished_series:   # .git/info/exclude; never commit (G12)
+  - align.ipynb                    # the original, byte-identical to what the owner had (sha1 blob 9674a79)
+  - analogues.txt
   - sil.mol2
   - sil.prm
   - sil.rtf
-  - analogues.txt
+  - cellz.yaml
+  - cellz_build.yaml
+untracked_awaiting_owner_decision:
   - TODO.md                        # two items: protonation-state mismatch, chirality
 ignored_by_gitignore:
   - build.*/
@@ -207,13 +215,16 @@ not_written_on_purpose:
   - docs/dev/ROADMAP.md
   - docs/dev/NOTES.md
   - CI workflow
-test_suite: {passed: 136, skipped: 0, date: 2026-10-08, env: crimm-dev, MSLDPREP_CGENFF_PATH: set}
-test_suite_without_cgenff: {passed: 131, skipped: 5, date: 2026-10-08}
+test_suite: {passed: 136, skipped: 0, date: 2026-10-08, env: crimm-dev, tool variables: set}
+test_suite_without_tool_variables: {passed: 78, skipped: 58, date: 2026-10-08}
 env: crimm-dev                     # no separate env file
 crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul
-directory_still_named: msld-prep-tools   # the owner's name is msld-prep; see Q5
-library_code_changed_by_agents: none
-test_code_changed_by_agents: tests/test_analog_prep.py (CGenFF path from environment)
+directory: /home/ziqiaoxu/msld-prep   # /home/ziqiaoxu/msld-prep-tools is a symlink to it (G11)
+library_code_changed_by_agents: none   # msldprep/ untouched
+code_changed_by_agents_2026-10-08:
+  - tests/test_analog_prep.py, tests/test_sybyl_typer.py (tool paths from environment)
+  - msld_prep_cli.py (cgenff defaults from environment), run_msld_prep_from_smiles.py,
+    configs/from_smiles_example.yaml
 ```
 
 ## 6. Claims
@@ -235,14 +246,16 @@ ROADMAP row.
 | --- | --- | --- |
 | Q1 | Which licence? **ANSWERED 2026-10-08 by the owner:** GPLv3. `LICENSE` added. | 2026-10-08 |
 | Q2 | Where is the repository? **ANSWERED 2026-10-08:** `https://github.com/Truman-Xu/msld-prep.git`, empty when created. Remote added locally. Whether anyone besides `@Truman-Xu` owns an area is not answered; `CODEOWNERS` lists only the owner. | 2026-10-08 |
-| Q3 | Which loose files are committed? **PARTLY ANSWERED 2026-10-08:** `build.*/`, `work.*/` ignored; `align.ipynb` committed; the rest (`examples/`, `cellz*.yaml`, `sil.*`, `analogues.txt`, `TODO.md`) is for the owner to decide later. Note `examples/2_ChEMBL` is required by the tests (G11). | 2026-10-08 |
+| Q3 | Which loose files are committed? **ANSWERED 2026-10-08:** `build.*/`, `work.*/` ignored; `examples/` committed; `align.ipynb` was to be committed and then withdrawn (below). Still open, the owner decides later: `TODO.md`. | 2026-10-08 |
 | Q4 | One snapshot or split commits? **ANSWERED 2026-10-08:** one snapshot. | 2026-10-08 |
-| Q5 | Project name? **PARTLY ANSWERED 2026-10-08:** `msld-prep`. `pyproject.toml` name, README and docs use it. The importable package stays `msldprep`. The directory `/home/ziqiaoxu/msld-prep-tools` was not renamed because the session's working directory would vanish under it. Rename it to `/home/ziqiaoxu/msld-prep` when no session is running in it (`mv`); nothing in the repo depends on the directory name. Does the owner want the package renamed too (`msld_prep`)? | 2026-10-08 |
+| Q5 | Project name? **ANSWERED 2026-10-08:** repo `msld-prep`, directory `/home/ziqiaoxu/msld-prep` with `/home/ziqiaoxu/msld-prep-tools` kept as a symlink (G11). Package stays `msldprep`. Not asked: rename the package to `msld_prep`? It would break users of the published path. | 2026-10-08 |
 | Q6 | Which crimm version? **DEFERRED 2026-10-08 by the owner:** latest PyPI release, unpinned, until the crimm overhaul is done; then pin. The suite was checked against PyPI 2026.2.2 (section 3). | 2026-10-08 |
-| Q7 | CGenFF path in tests? **ANSWERED 2026-10-08:** now `MSLDPREP_CGENFF_PATH` (G12 lists the hard-coded paths left). | 2026-10-08 |
+| Q7 | CGenFF path in tests? **ANSWERED 2026-10-08:** now `MSLDPREP_CGENFF_PATH` (section 3). | 2026-10-08 |
 | Q8 | Which env? **ANSWERED 2026-10-08:** `crimm-dev`; it has every dependency. | 2026-10-08 |
-| Q9 | Move the OpenBabel path in `tests/test_sybyl_typer.py` and the CGenFF paths in the root script and example config (G12) to environment variables too? Not asked. | 2026-10-08 |
-| Q10 | `align.ipynb` has an 8 MB output cell and a few paths under another user's directory. Strip outputs before the first push? Committed as is, as asked. | 2026-10-08 |
+| Q9 | Move the remaining hard-coded tool paths to environment variables? **ANSWERED 2026-10-08:** yes, done for tracked files (section 3). | 2026-10-08 |
+| Q10 | `align.ipynb` outputs and another user's paths? **ANSWERED 2026-10-08, superseded by Q11:** the owner asked for outputs stripped and the inputs copied in; then withdrew it because the notebook and its inputs hold unpublished structures. The notebook stays local and untracked. | 2026-10-08 |
+| Q11 | May the notebook's inputs, or anything built from the analog series, be published? **ANSWERED 2026-10-08 by the owner:** no. See the standing instruction. Not asked: is `examples/2_ChEMBL`, the `configs/chembl_congeneric*` files and the SMILES in `tests/test_grouping.py` (a biaryl sulfonyl-piperazine series) all public or invented? They are committed and would be published with the first push. Owner to confirm before pushing. | 2026-10-08 |
+| Q12 | `align.ipynb` fails at cell 9 on the checked-out crimm branch (G13). Merge crimm's `RDKConverter-Het` fix or adjust the notebook? Crimm is not ours to change. | 2026-10-08 |
 
 ## 8. Log
 
@@ -259,6 +272,48 @@ Newest first. Append only. Template:
 - next:
 ```
 
+### 2026-10-08 claude-sonnet/claude-code/repo-config (entry 2)
+
+- asked: add `examples/` and commit; make the directory `msld-prep` with the old name kept as a
+  symlink; keep `crimm-dev`; move the remaining hard-coded tool paths to environment
+  variables; make the notebook self-contained and strip its outputs. Then: **the notebook and
+  its inputs contain unpublished structures; remove the notebook from the commits and roll
+  back the commits that contain it before anything is pushed.**
+- did:
+  - committed `examples/2_ChEMBL`; moved the OpenBabel path (tests) and CGenFF paths (CLI
+    default, root script, example config) to `MSLDPREP_OBABEL_PATH`, `MSLDPREP_CGENFF_PATH` and
+    `MSLDPREP_CGENFF_BASE_PRM`; renamed the directory to `/home/ziqiaoxu/msld-prep` with a
+    relative symlink at the old name;
+  - made and then **withdrew** a commit that added the notebook's three input files and a
+    stripped notebook. Rollback: saved the original notebook; `git reset --hard` to the commit
+    before it; `git filter-branch --index-filter` over the three remaining commits to drop
+    `align.ipynb` and the copied inputs and to remove another user's directory path from this
+    file; deleted the `refs/original` backup; `git reflog expire --expire=now --all`;
+    `git gc --prune=now`; restored the original notebook as an untracked file; added it, and
+    `analogues.txt`, `sil.*`, `cellz*.yaml` to `.git/info/exclude`; deleted the scratch copies of
+    the notebook and the copied inputs; updated this file and `docs/dev/BEST_PRACTICES.md`;
+  - the working tree copies of the inputs were removed by the reset (the originals were not
+    touched).
+- verified `[ran]`: the restored notebook's git blob hash equals the one in the first commit
+  (`9674a79`, size 8,407,017 bytes, the size the file had when the session began);
+  `git rev-list --all --objects` lists no notebook, no copied input and no `.ipynb`;
+  `git grep` over every reachable commit finds no other user's name or path; the removed blob
+  is not in the object store (`git cat-file -e` exits 1); `git fsck` prints nothing;
+  136 passed with the three variables set, 78 passed and 58 skipped with them unset (run before
+  the rollback; the rollback touched no code).
+- not verified: that no other copy of the analog structures remains in the Claude session
+  transcripts or tool outputs on this machine (the scratch directory was cleaned, the
+  transcripts were not touched); `examples/2_ChEMBL` and the test SMILES are public (Q11);
+  a clone of the repository; any push.
+- found: G12 to G14, Q11, Q12.
+- mistakes: I committed the notebook's original, with its outputs, in the first commit and
+  copied the notebook's inputs into the repository before the owner confirmed they could be
+  published. Both are removed, and no push happened. I also deleted my scratch copy of the
+  previous handoff before reusing it, so this file was rebuilt from the pre-notebook version
+  and the entries above.
+- next: the owner answers Q11 (public status of `examples/2_ChEMBL`, `configs/`, test SMILES)
+  and says when to push. `ROADMAP.md`, `NOTES.md` and the crimm handoff entry on request.
+
 ### 2026-10-08 claude-sonnet/claude-code/repo-config
 
 - asked: apply the owner's answers to Q1 to Q8, configure the project further, and log it.
@@ -267,7 +322,8 @@ Newest first. Append only. Template:
     `license` field and classifier in `pyproject.toml`, and a README section.
   - Q2: `git remote add origin https://github.com/Truman-Xu/msld-prep.git`. Not fetched, not
     pushed. Added the project URLs to `pyproject.toml`; the issue-tracker link in CONTRIBUTING.
-  - Q3: `.gitignore` now ignores `build.*/` and `work.*/`. `align.ipynb` is in the commit.
+  - Q3: `.gitignore` now ignores `build.*/` and `work.*/`. `align.ipynb` was put in the commit
+    (withdrawn later the same day, see entry 2).
     Everything else the owner left undecided stays untracked.
   - Q4: made the first commit as one snapshot of the files listed in State. Local only.
   - Q5: project name `msld-prep` in `pyproject.toml`, README, AGENTS, BEST_PRACTICES. Package
