@@ -5,7 +5,7 @@ first; humans read it second.
 
 ```yaml
 schema: agent-handoff/1
-repo: github.com/Truman-Xu/msld-prep   # remote added 2026-10-08; nothing pushed yet
+repo: github.com/Truman-Xu/msld-prep   # public; first push 2026-10-08
 default_branch: main
 last_updated: 2026-10-08
 ```
@@ -88,7 +88,8 @@ questions in section 7. Do not create the two files on your own.
     `run_msld_prep.py`, `run_msld_prep_from_smiles.py`; configs in `configs/`.
 - **Dependency on crimm.** The dependency is the latest PyPI release of crimm for now; the
   version is pinned after the crimm overhaul is finished. `[told 2026-10-08]`
-  `msldprep/rtf_records.py` imports `crimm.IO.RTFParser.RTFParser`;
+  This project is listed in crimm's handoff (Orientation, "What goes where") with the names it
+  imports. `msldprep/rtf_records.py` imports `crimm.IO.RTFParser.RTFParser`;
   `msldprep/prm_records.py` imports from `crimm.IO.PRMParser`; `tests/test_prm_records.py`
   imports `angle_par`, `bond_par`, `nonbond_par`, `ub_par`, `nonbond14_par` from it.
   `[read, grep 2026-10-08]` crimm is a separate project. This repo only reads it; if crimm
@@ -106,10 +107,12 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-08 | This is a separate repository, set up and configured the way crimm is: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, handoff and best-practice docs, issue forms, `CODEOWNERS`, `environment-dev.yml`, `pyproject.toml`. | `[told]` |
 | 2026-10-08 | Do not touch anything in the crimm project. | `[told]` |
 | 2026-10-08 | Do not write `ROADMAP.md` or `NOTES.md` until the owner asks. | `[told]` |
-| 2026-10-08 | The owner will later have an agent log this project in crimm's handoff docs so other agents know it exists. | `[told]` |
+| 2026-10-08 | The owner will later have an agent log this project in crimm's handoff docs so other agents know it exists. **Done 2026-10-08** by claude-sonnet/claude-code/msld-prep-intro (entry in crimm's `docs/dev/AGENT_HANDOFF.md`, written at the owner's request; crimm's agents may now name this project). | `[told]` |
+| 2026-10-08 | The `RDKConverter-Het` hotfix in crimm (`8075b75`) will not be published anytime soon. Crimm's agents are to remind the owner that this project needs it when it is published. | `[told]` |
+| 2026-10-08 | Commit the handoff edit, push all commits, turn `TODO.md` into GitHub issues, update the dev docs. This permission covers that push only; it does not carry over to later sessions. | `[told]` |
 | 2026-10-08 | Licence is GPLv3. | `[told]` |
 | 2026-10-08 | The project is named `msld-prep`; its remote is `https://github.com/Truman-Xu/msld-prep.git`. The importable package stays `msldprep` `[inferred: a hyphen cannot be in an import name]`. | `[told]` |
-| 2026-10-08 | `build.*/` and `work.*/` are never committed and are in `.gitignore`. The owner decides later about `TODO.md`. | `[told]` |
+| 2026-10-08 | `build.*/` and `work.*/` are never committed and are in `.gitignore`. | `[told]` |
 | 2026-10-08 | **Do not publish the structures of the analogs.** The lab's analog series is unpublished. Never commit, push, or paste into docs, tests, issues, PRs or commit messages any file or output that contains those structures: `align.ipynb`, `analogues.txt`, `sil.*`, `cellz*.yaml`, or anything built from them. The owner may name more. | `[told]` |
 | 2026-10-08 | `align.ipynb` is not committed. It was removed from the local commits, and the history rewritten, before anything was pushed. The first commit is a snapshot. | `[told]` |
 | 2026-10-08 | `examples/` is committed. | `[told]` |
@@ -140,11 +143,11 @@ specific to it.
 | In that env `crimm` is an editable install that resolves to `/home/ziqiaoxu/crimm/crimm/__init__.py`. | `[ran 2026-10-08]` |
 | `torch210` also has crimm, RDKit 2025.09.4 and PyYAML, but no OpenBabel. The suite was not run there. | `[ran 2026-10-08]` imports only |
 | `crimm-dev` has every import the package and tests use: rdkit, numpy, yaml, pytest, pandas, openbabel, scipy, crimm, `crimm.IO.RTFParser`, `crimm.IO.PRMParser`. So no `environment-dev.yml` exists in this repo; I deleted the unbuilt one I had written. | `[ran 2026-10-08]` |
-| `crimm-dev` has crimm 2024.7a2 installed editable from `/home/ziqiaoxu/crimm` (the local `pyproject.toml` says 2026.2.1), not the PyPI release. | `[ran 2026-10-08]` pip list |
+| crimm 2024.7a2 is installed editable from `/home/ziqiaoxu/crimm`, with its `.pth` and finder in the **user site** (`~/.local/lib/python3.12/site-packages`), not in `crimm-dev` itself. Any Python 3.12 of the owner that sees the user site gets the local checkout, not the PyPI release. The local `pyproject.toml` says 2026.2.1. | `[ran 2026-10-08]` pip show |
 | The suite also passes, 136 passed, against the latest PyPI crimm (2026.2.2, wheel installed with `--no-deps` into a scratch directory and put first on `PYTHONPATH`). | `[ran 2026-10-08]` |
 | Tools are found through environment variables, else `PATH`: `MSLDPREP_CGENFF_PATH` (program), `MSLDPREP_CGENFF_BASE_PRM` (base prm; default `par_all36_cgenff.prm` beside the program; the root script and tests use that default, the CLI omits `-p` if unset), `MSLDPREP_OBABEL_PATH` (obabel). With none found, 5 CGenFF tests and 53 OpenBabel tests skip. Installs that work here: `/export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/cgenff` and `/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel`; crimm's handoff names a different CGenFF (`.../src/2026/silcsbio.2026.1-alpha/...`). `obabel` is not on `PATH` in a non-activated shell. | `[ran 2026-10-08]` |
 | `tests/test_writers.py::test_downstream_msld_prm_contract` imports `msld_prm` from `/home/ziqiaoxu/msld-py-prep` and runs it. | `[read]`, `[ran]` passes |
-| Branch `main`; remote `origin` is `https://github.com/Truman-Xu/msld-prep.git`, added locally, never fetched or pushed. | `[ran 2026-10-08]` |
+| Branch `main`, tracking `origin/main` (`https://github.com/Truman-Xu/msld-prep.git`, **public**, issues enabled), pushed 2026-10-08. `gh` is at `/home/ziqiaoxu/.conda/envs/crimm-dev/bin/gh`, logged in as `Truman-Xu` (scopes `repo`, `read:org`, `admin:public_key`, `gist`). `gh` is not on `PATH`. | `[ran 2026-10-08]` |
 
 Commands that work `[ran 2026-10-08]`:
 
@@ -169,13 +172,13 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G5 | CGenFF atom types are carried on RDKit atoms as the `CGENFFAtomType` property and grouped via isotope labels starting at 300 (`align.py`). Do not use isotopes for anything else in this package. | `[read]` |
 | G6 | `msldprep/sybyl_typing_data.py` is generated from `data/atomtyp.txt` and `data/types.txt`. Edit the generator or inputs, then rerun it. | `[read]` |
 | G7 | Docstrings and configs still say `rewrite/msld_prep_cli.py` and `rewrite/scripts/...`, from when this code lived in a `rewrite/` directory. Four matches in `.py` and `.yaml` files. The real paths have no `rewrite/`. | `[ran grep 2026-10-08]` |
-| G8 | Untracked does not mean disposable. `build.*/` and `work.*/` are git-ignored but still hold the owner's runs; do not delete them. `TODO.md` is untracked pending the owner's decision. | `[inferred]` |
+| G8 | Untracked does not mean disposable. `build.*/` and `work.*/` are git-ignored but still hold the owner's runs; do not delete them. `TODO.md` is untracked; its two items are issues #1 and #2 now, and the file was left in place for the owner to delete or keep. | `[inferred]` |
 | G9 | Other sessions may edit `docs/dev/*.md` concurrently. Re-read a file immediately before editing it, and make targeted edits, never whole-file rewrites. | `[inferred: same hazard recorded in crimm's handoff]` |
 | G10 | `test_downstream_msld_prm_contract` puts `/home/ziqiaoxu/msld-py-prep` on `sys.path` and emits pandas `ChainedAssignmentError` warnings from that legacy file. The warnings are in legacy code, not in this repo. | `[ran 2026-10-08]` |
 | G11 | `/home/ziqiaoxu/msld-prep-tools` is a symlink to `/home/ziqiaoxu/msld-prep` (published to cluster users; see standing instructions). Use the new path in docs and new scripts; do not break the link. | `[told 2026-10-08]`, `[ran]` |
 | G12 | The owner's untracked files `align.ipynb`, `analogues.txt`, `sil.mol2`, `sil.prm`, `sil.rtf`, `cellz.yaml` and `cellz_build.yaml` belong to the unpublished analog series (the notebook holds its structures, `analogues.txt` lists them, `cellz*.yaml` point to them). They are listed in `.git/info/exclude`, so `git add .` skips them. That file is local; a fresh clone has no such protection. `cellz.yaml` also holds a CGenFF install path. | `[read]` heads of the files, `[ran]` exclude |
 | G13 | `align.ipynb` reads its inputs from absolute paths in another lab member's directory, and was run only as far as cell 9. There it fails: `crimm/Adaptors/RDKitConverter.py::heterogen_to_rdkit` reads `het_res.pdbx_description`, which a `Residue` read from a CRD file lacks. The owner's hotfix is commit `8075b75` on crimm's local branch `RDKConverter-Het`, not the checked-out branch (`cleanup/phase0-tests-and-dev-docs`). Cells after 9 were not run. | `[ran 2026-10-08]` failure; `[inferred]` cause |
-| G14 | Rewriting history (`git filter-branch`, then `gc --prune=now`) was done on 2026-10-08 while nothing was pushed. Once anything is pushed, that is no longer a clean undo: a published structure stays in forks and caches. Check `git diff --cached --stat` and the file list before every push. | `[ran]` |
+| G14 | Rewriting history (`git filter-branch`, then `gc --prune=now`) was done on 2026-10-08 while nothing was pushed. **The repository is public and was pushed the same day, so from now on history rewrites are not a clean undo**: a published file stays in forks and caches. Check `git ls-files`, `git log --stat` and `git push --dry-run` before every push. | `[ran]` |
 
 ## 5. State
 
@@ -184,10 +187,16 @@ Rewrite in place. True as of `2026-10-08`.
 ```yaml
 git:
   branch: main
-  remote: origin https://github.com/Truman-Xu/msld-prep.git   # not pushed
-  commits: three local commits (history rewritten 2026-10-08, G14): snapshot, ChEMBL examples,
-           environment variables for tool paths
-  pushed: false                    # the owner has not asked to push
+  remote: origin https://github.com/Truman-Xu/msld-prep.git   # public, tracking origin/main
+  commits: five (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
+           examples, environment variables for tool paths, the unpublished-structures handoff
+           entry, then the push-day docs commit
+  pushed: true                     # 2026-10-08, at the owner's request (section 2)
+  branch_protection: none          # not set
+github:
+  issues: ["#1 reference and analog protonation states can mismatch", "#2 respect chirality of molecules through the pipeline"]
+  labels_created: [correctness]    # on top of GitHub's defaults
+  milestones: none                 # wait for ROADMAP.md
 tracked:
   - AGENTS.md, CLAUDE.md, CONTRIBUTING.md, README.md, LICENSE (GPLv3, copied from crimm's)
   - pyproject.toml, .gitignore, .github/
@@ -203,7 +212,7 @@ excluded_locally_unpublished_series:   # .git/info/exclude; never commit (G12)
   - cellz.yaml
   - cellz_build.yaml
 untracked_awaiting_owner_decision:
-  - TODO.md                        # two items: protonation-state mismatch, chirality
+  - TODO.md                        # converted to issues #1 and #2; owner deletes or keeps it
 ignored_by_gitignore:
   - build.*/
   - work.*/
@@ -254,8 +263,8 @@ ROADMAP row.
 | Q8 | Which env? **ANSWERED 2026-10-08:** `crimm-dev`; it has every dependency. | 2026-10-08 |
 | Q9 | Move the remaining hard-coded tool paths to environment variables? **ANSWERED 2026-10-08:** yes, done for tracked files (section 3). | 2026-10-08 |
 | Q10 | `align.ipynb` outputs and another user's paths? **ANSWERED 2026-10-08, superseded by Q11:** the owner asked for outputs stripped and the inputs copied in; then withdrew it because the notebook and its inputs hold unpublished structures. The notebook stays local and untracked. | 2026-10-08 |
-| Q11 | May the notebook's inputs, or anything built from the analog series, be published? **ANSWERED 2026-10-08 by the owner:** no. See the standing instruction. Not asked: is `examples/2_ChEMBL`, the `configs/chembl_congeneric*` files and the SMILES in `tests/test_grouping.py` (a biaryl sulfonyl-piperazine series) all public or invented? They are committed and would be published with the first push. Owner to confirm before pushing. | 2026-10-08 |
-| Q12 | `align.ipynb` fails at cell 9 on the checked-out crimm branch (G13). Merge crimm's `RDKConverter-Het` fix or adjust the notebook? Crimm is not ours to change. | 2026-10-08 |
+| Q11 | May the notebook's inputs, or anything built from the analog series, be published? **ANSWERED 2026-10-08 by the owner:** no. See the standing instruction. The public status of what *is* committed was checked before the push: all 375 tracked files under `examples/2_ChEMBL` are byte-identical to files tracked in the public `Vilseck-Lab/msld-py-prep` (anonymous `git ls-remote` works); the quinazoline SMILES in `configs/` match that public example; the SMILES in `tests/test_grouping.py` are generic biaryl compounds, not the unpublished series (`[read]`; the owner did not confirm that last point). | 2026-10-08 |
+| Q12 | `align.ipynb` fails at cell 9 on the checked-out crimm branch (G13). **PLAN 2026-10-08 `[told]`:** the fix is crimm's `RDKConverter-Het` (`8075b75`), which will not be published soon. Crimm's handoff (section 2, Orientation and log) tells its agents to remind the owner when it is published. Until then the notebook cells after 9 cannot be run on the checked-out crimm branch. Crimm is not ours to change. When reminded: re-run the notebook from cell 9, and record the crimm version that contains the fix in section 3. | 2026-10-08 |
 
 ## 8. Log
 
@@ -271,6 +280,45 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-08 claude-sonnet/claude-code/first-push
+
+- asked: commit the handoff edit, push all commits, turn `TODO.md` into GitHub issues, update the
+  dev docs.
+- before the push: the owner had not answered Q11, so I checked it. All 375 tracked files under
+  `examples/2_ChEMBL` are byte-identical to files tracked in the public
+  `Vilseck-Lab/msld-py-prep` (`git ls-remote` works anonymously); no tracked file is not in
+  upstream; the `configs/` SMILES are the quinazoline anilines of that public example; a scan
+  of tracked files for tokens, passwords and keys found nothing; the only email is the one in
+  `pyproject.toml` (also in crimm's public one); no notebook, `.crd`, `.mol2`, `.smi`, or
+  `analog` file is tracked outside `examples/2_ChEMBL` and `msldprep/`/`tests/` code. `[ran]`
+- did: created the label `correctness` and issues #1 (protonation states of reference and analogs
+  can mismatch) and #2 (respect chirality) from `TODO.md`, in the form of the agent-task issue
+  template. They contain only what `TODO.md` says plus pointers to code; nothing was reproduced,
+  and both say so. Fixed this file's stale lines (commit count, remote, editable-crimm fact,
+  G8, G14, Q11). Committed, then pushed with `git push -u origin main`. `[ran]`
+- not done: `TODO.md` itself was not deleted or edited; no milestones or assignees; no branch
+  protection; no CI; `ROADMAP.md` and `NOTES.md` (the owner will ask).
+- verified: see the push result in State (`git status`, `git log origin/main`) `[ran]`.
+- found: crimm's editable install is in the user site, not in the env (section 3).
+- next: `ROADMAP.md` and `NOTES.md` when the owner asks; milestones mirror its phases; the
+  reminder about `RDKConverter-Het` (Q12) is in crimm's handoff.
+
+### 2026-10-08 claude-sonnet/claude-code/msld-prep-intro
+
+- asked: record in crimm's dev docs that this project needs the `RDKConverter-Het` hotfix, so
+  crimm's agents remind the owner when it is published; this project may now be named there.
+- did: edited crimm's `docs/dev/AGENT_HANDOFF.md` only (details in its own log entry with the
+  same title). Here: marked the "log this project in crimm" instruction done, added the
+  hotfix instruction, updated Q12 and the Orientation line on the crimm dependency. Not
+  committed in either repository. `[ran]`
+- verified: the failing line of the notebook (`RDKitConverter.py:664`, `pdbx_description`) is
+  the one `8075b75` guards `[read]`.
+- not verified: the notebook with the fix applied; whether the first hunk of `8075b75` is also
+  needed.
+- crimm: one file edited with the owner's permission; nothing committed there. Another
+  session was editing the same file; I re-read it before writing and changed only my lines.
+- next: unchanged (Q11 and the push).
 
 ### 2026-10-08 claude-sonnet/claude-code/repo-config (entry 2)
 
