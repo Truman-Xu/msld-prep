@@ -121,6 +121,9 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-08 | Install paths of CGenFF and OpenBabel come from environment variables, never from source or example configs. | `[told]` |
 | 2026-10-08 | Use the latest PyPI release of crimm for now; pin a version after the crimm overhaul. | `[told]` |
 | 2026-10-08 | The working env is `crimm-dev` if it satisfies every dependency of this project. It does (see section 3). | `[told]` |
+| 2026-10-12 | Project goal: a streamlined pipeline with only the inputs and outputs MSLD needs, in-memory objects for intermediate stages (fewer saved files), and a robust, user-friendly web GUI with visualization tailored to this process. | `[told]` |
+| 2026-10-12 | Working item 1: a web GUI for **only the alignment step** that `align.ipynb` runs. Runs on the cluster, reached by SSH tunnel. Stack: FastAPI backend plus small JS front end with 3Dmol.js; the later full app reuses the API. Input: reference with 3D coordinates as **mol2 or sdf** (no CRD, so no crimm hotfix) plus analog SMILES. Output: aligned sdf and one Sybyl-typed mol2 per analog. No CGenFF call in the GUI. Plan: `/home/ziqiaoxu/.claude/plans/thank-you-for-the-valiant-sonnet.md` (milestones M0 to M5); not started. | `[told]` |
+| 2026-10-12 | Working item 2: the owner is not satisfied with the current rewrite design but has not run MSLD and does not yet understand the original implementation. The next deliverable is a **learning plan** for the legacy `msld-py-prep` (not a software roadmap): detailed explanation of each module, charge renormalization, and the purpose of each output file. Design decisions and old-versus-new tests with real MSLD runs come after, with colleagues helping on CHARMM. See Q13. | `[told]` |
 
 Working agreements carried over from crimm (not owner instructions for this project; change
 them by logging why) `[inferred: same owner, same setup]`:
@@ -144,6 +147,8 @@ specific to it.
 | `torch210` also has crimm, RDKit 2025.09.4 and PyYAML, but no OpenBabel. The suite was not run there. | `[ran 2026-10-08]` imports only |
 | `crimm-dev` has every import the package and tests use: rdkit, numpy, yaml, pytest, pandas, openbabel, scipy, crimm, `crimm.IO.RTFParser`, `crimm.IO.PRMParser`. So no `environment-dev.yml` exists in this repo; I deleted the unbuilt one I had written. | `[ran 2026-10-08]` |
 | crimm 2024.7a2 is installed editable from `/home/ziqiaoxu/crimm`, with its `.pth` and finder in the **user site** (`~/.local/lib/python3.12/site-packages`), not in `crimm-dev` itself. Any Python 3.12 of the owner that sees the user site gets the local checkout, not the PyPI release. The local `pyproject.toml` says 2026.2.1. | `[ran 2026-10-08]` pip show |
+| Since 2026-10-12 the owner's sessions in this project put crimm's git worktree `/home/ziqiaoxu/crimm-hotfix` (branch `RDKConverter-Het`, `8075b75`) first on `PYTHONPATH`, through the `env` block of `.claude/settings.local.json` (local, git-excluded). It shadows the editable install. Check with `python -B -c "import crimm; print(crimm.__file__)"`. The worktree exists because the editable `/home/ziqiaoxu/crimm` has that branch switched off. | `[ran 2026-10-12]`, `[told 2026-10-12]` |
+| Since 2026-10-12 `crimm-dev` also has the packages for the GUI: fastapi 0.143.0, uvicorn 0.54.0, starlette 1.7.0, pydantic 2.14.1, python-multipart 0.0.32, httpx 0.28.1 (httpx was already there; `TestClient` needs it). Installed with `pip install` at the owner's request, nothing else changed. `pip check` reports `nglview 4.0 has requirement numpy<2.3, but you have numpy 2.5.3`; that predates this install (numpy was not touched). Offline suite after the install: 78 passed, 58 skipped. | `[ran 2026-10-12]` |
 | The suite also passes, 136 passed, against the latest PyPI crimm (2026.2.2, wheel installed with `--no-deps` into a scratch directory and put first on `PYTHONPATH`). | `[ran 2026-10-08]` |
 | Tools are found through environment variables, else `PATH`: `MSLDPREP_CGENFF_PATH` (program), `MSLDPREP_CGENFF_BASE_PRM` (base prm; default `par_all36_cgenff.prm` beside the program; the root script and tests use that default, the CLI omits `-p` if unset), `MSLDPREP_OBABEL_PATH` (obabel). With none found, 5 CGenFF tests and 53 OpenBabel tests skip. Installs that work here: `/export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/cgenff` and `/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel`; crimm's handoff names a different CGenFF (`.../src/2026/silcsbio.2026.1-alpha/...`). `obabel` is not on `PATH` in a non-activated shell. | `[ran 2026-10-08]` |
 | `tests/test_writers.py::test_downstream_msld_prm_contract` imports `msld_prm` from `/home/ziqiaoxu/msld-py-prep` and runs it. | `[read]`, `[ran]` passes |
@@ -182,7 +187,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 
 ## 5. State
 
-Rewrite in place. True as of `2026-10-08`.
+Rewrite in place. True as of `2026-10-12`.
 
 ```yaml
 git:
@@ -190,12 +195,14 @@ git:
   remote: origin https://github.com/Truman-Xu/msld-prep.git   # public, tracking origin/main
   commits: five (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
            examples, environment variables for tool paths, the unpublished-structures handoff
-           entry, then the push-day docs commit
-  pushed: true                     # 2026-10-08, at the owner's request (section 2)
+           entry, then the push-day docs commit; a sixth, local commit (handoff: crimm hotfix
+           path, GUI plan, learning-plan intent) was made 2026-10-12
+  pushed: first five only          # 2026-10-08, at the owner's request (section 2); the sixth is not pushed
   branch_protection: none          # not set
 github:
-  issues: ["#1 reference and analog protonation states can mismatch", "#2 respect chirality of molecules through the pipeline"]
-  labels_created: [correctness]    # on top of GitHub's defaults
+  issues: ["#1 reference and analog protonation states can mismatch", "#2 respect chirality of molecules through the pipeline",
+           "#3 to #8 alignment GUI milestones M0 to M5 (created 2026-10-12; M0 library support, M1 session service, M2 FastAPI API, M3 front end, M4 review and export, M5 docs)"]
+  labels_created: [correctness, gui]    # on top of GitHub's defaults
   milestones: none                 # wait for ROADMAP.md
 tracked:
   - AGENTS.md, CLAUDE.md, CONTRIBUTING.md, README.md, LICENSE (GPLv3, copied from crimm's)
@@ -265,10 +272,12 @@ ROADMAP row.
 | Q10 | `align.ipynb` outputs and another user's paths? **ANSWERED 2026-10-08, superseded by Q11:** the owner asked for outputs stripped and the inputs copied in; then withdrew it because the notebook and its inputs hold unpublished structures. The notebook stays local and untracked. | 2026-10-08 |
 | Q11 | May the notebook's inputs, or anything built from the analog series, be published? **ANSWERED 2026-10-08 by the owner:** no. See the standing instruction. The public status of what *is* committed was checked before the push: all 375 tracked files under `examples/2_ChEMBL` are byte-identical to files tracked in the public `Vilseck-Lab/msld-py-prep` (anonymous `git ls-remote` works); the quinazoline SMILES in `configs/` match that public example; the SMILES in `tests/test_grouping.py` are generic biaryl compounds, not the unpublished series (`[read]`; the owner did not confirm that last point). | 2026-10-08 |
 | Q12 | `align.ipynb` fails at cell 9 on the checked-out crimm branch (G13). **PLAN 2026-10-08 `[told]`:** the fix is crimm's `RDKConverter-Het` (`8075b75`), which will not be published soon. Crimm's handoff (section 2, Orientation and log) tells its agents to remind the owner when it is published. Until then the notebook cells after 9 cannot be run on the checked-out crimm branch. Crimm is not ours to change. When reminded: re-run the notebook from cell 9, and record the crimm version that contains the fix in section 3. | 2026-10-08 |
+| Q13 | **Item 2, for the next session.** Write the learning plan for the legacy pipeline (standing instruction 2026-10-12). Seed `[read 2026-10-12]`, nothing run: **sources** are the workshop notebook `BrooksResearchGroup-UM/MSLD-Workshop`, `4msld-py-prep/faah_prep/MSLD_Py_Prep.ipynb` (58 cells), and Vilseck, Cervantes, Hayes, Brooks, JCIM 2022, 62, 1479, DOI 10.1021/acs.jcim.2c00047. **Legacy modules** in `/home/ziqiaoxu/msld-py-prep`: `msld_py_prep.py` (driver, run twice), `msld_chk.py`, `msld_mcs.py`, `msld_mcs_rdecomp.py`, `msld_crn.py` (charge renormalization and most writers), `msld_prm.py`, `msld_wrt.py`, `vis_check.py`, `CRN_Plugin/`, `Lg_Solvate.sh`, `bookending_corrections/`; the legacy repo has no tests. **Worked example** `examples/1_FAAH` (2 sites, 33 substituents): read `NOTES`, `mol_list.txt`, `1.mol2/.rtf/.prm/.str`, `MCS_for_MSLD.txt`, then `build.name/` (`core.rtf`, `core.pdb`, `site1_sub1_pres.rtf`, `site1_sub1_frag.pdb`, `site2_sub1_pres.rtf`, `lpsites.inp`, `full_ligand.prm`, `translation.txt`, `name.inp`); `examples/2_ChEMBL/msld_py_prep.log` shows a bad core. **Why CRN:** substituents at a site coexist in one system, so each needs the same net charge and the core one shared charge set; CRN averages and redistributes charge with minimal change (the paper ties charge RMSD above about 0.001 e to changed free energies). **Design questions to answer by reading, none verified:** (1) legacy deduplicates identical fragments per site (`NSUBS 19 24` for 31 ligands), msld-prep appears not to (`nsubs` 34 34 34 for 34 ligands in `build.chembl_congeneric`): intended or regression? (2) does the proportional redistribution in `crn.py` meet the same constraints as the legacy cyclic 1e-6 loop? (3) legacy `.str` splitting has no counterpart on the `from-files` path, and its config comment about `.str` may be stale; (4) which output files do CHARMM or ALF really read, and which are review artefacts only (decides "fewer saved files"); (5) `bookending_corrections/` and `Lg_Solvate.sh` have no counterpart here. **Proposed format:** per-module notes with a worked trace of one small example, a by-hand CRN exercise on two or three ligands, a side-by-side old/new run on `examples/1_FAAH` and `2_ChEMBL`, then a session with colleagues on CHARMM. Where the plan file lives is the owner's call; no `ROADMAP.md` or `NOTES.md` until asked. | 2026-10-12 |
 
 ## 8. Log
 
 Newest first. Append only. Template:
+
 
 ```markdown
 ### YYYY-MM-DD <model>/<tool>/<task>
@@ -280,6 +289,44 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-12 claude-sonnet/claude-code/gui-plan-and-learning-intent
+
+- asked: plan item 1 (web GUI for the notebook's alignment step) and log the intent for item 2
+  (learning plan for the legacy pipeline) for the next session.
+- did: read-only exploration of `msldprep/align.py`, `analog_prep.py`, `pipeline.py`, the CLI,
+  the notebook's code-cell structure (no structures read out or copied), the legacy
+  `msld-py-prep`, and the workshop notebook; wrote the plan file named in section 2; recorded
+  the owner's decisions in section 2 and the item 2 intent and seed in Q13. No code, config or
+  library file changed; nothing committed; no issues created. `[ran]`/`[read]`
+- verified: `fastapi`, `uvicorn`, `starlette`, `pydantic`, `multipart` and `flask` are not
+  importable in `crimm-dev`; `jinja2` 3.1.6 is `[ran 2026-10-12]`.
+- not verified: any claim in Q13 beyond reading (no legacy code was run); the GUI plan's
+  assumptions about process-pool alignment, browser behaviour and series size; the legacy
+  `NSUBS` versus msld-prep `nsubs` comparison beyond file listings.
+- found: `align_common_core` returns no atom map or RMSD and takes no seed (plan, gaps 1 and 2);
+  the notebook's alignment needs no CGenFF.
+- later the same day, at the owner's request: created the label `gui` and issues #3 to #8
+  (M0 to M5, bodies in the agent-task form; the plan's milestone table is the source), installed
+  the GUI packages into `crimm-dev` (section 3), committed this file. Not pushed. `[ran]`
+  The M2 issue does not yet name httpx for the tests; it is already installed.
+- (superseded by the line above) next: owner approves, then: GitHub issues for M0 to M5 (ask first), `[web]` extra and env
+  decision (ask first), then M0. Item 2: write the learning plan (Q13).
+
+### 2026-10-12 claude-sonnet/claude-code/crimm-hotfix-path
+
+- asked: point this project's crimm at the worktree `/home/ziqiaoxu/crimm-hotfix` (the
+  `RDKConverter-Het` hotfix) and remember it.
+- did: added `env` with `PYTHONPATH=/home/ziqiaoxu/crimm-hotfix` and
+  `PYTHONDONTWRITEBYTECODE=1` to `.claude/settings.local.json` (local, git-excluded; no tracked
+  file or source path changed). Added the fact to section 3. crimm was not edited. `[ran]`
+- verified: with that `PYTHONPATH`, `crimm.__file__` is `/home/ziqiaoxu/crimm-hotfix/crimm/__init__.py`
+  and `crimm.IO.RTFParser`, `crimm.IO.PRMParser` import; without it, `/home/ziqiaoxu/crimm/...`.
+  Offline suite: 78 passed, 58 skipped (tool variables unset). `[ran]`
+- not verified: the 58 tool-backed tests against the hotfix; `align.ipynb` past cell 9 (Q12);
+  that the `env` block reaches shells outside Claude Code (it does not; export `PYTHONPATH` by
+  hand there).
+- next: when the hotfix is published (Q12), remove the `env` block and re-check section 3.
 
 ### 2026-10-08 claude-sonnet/claude-code/first-push
 
