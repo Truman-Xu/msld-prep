@@ -150,6 +150,54 @@ def fresh_reference_mol() -> Chem.Mol:
     return _fresh_mol(REFERENCE_STEM)
 
 
+def _molblock_3d(smiles: str) -> str:
+    mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
+    Chem.rdDistGeom.EmbedMolecule(mol, randomSeed=1)
+    return Chem.MolToMolBlock(mol)
+
+
+def test_mol_from_mol2_text_matches_the_file_loader(reference_ligand):
+    with open(reference_ligand.mol2_path) as handle:
+        mol = align.mol_from_mol2_text(handle.read())
+    assert mol.GetNumAtoms() == reference_ligand.mol.GetNumAtoms()
+    assert [a.GetProp("_TriposAtomName") for a in mol.GetAtoms()] == [
+        a.GetProp("_TriposAtomName") for a in reference_ligand.mol.GetAtoms()
+    ]
+    assert mol.GetConformer().Is3D()
+
+
+@pytest.mark.parametrize("text", ["", "not a mol2 file"])
+def test_mol_from_mol2_text_rejects_unreadable_text(text):
+    with pytest.raises(AlignmentError):
+        align.mol_from_mol2_text(text)
+
+
+def test_mol_from_sdf_text_reads_one_3d_molecule_with_explicit_hs():
+    mol = align.mol_from_sdf_text(_molblock_3d("CCO"))
+    assert mol.GetNumAtoms() == 9  # 3 heavy atoms + 6 H, none stripped
+    assert mol.GetConformer().Is3D()
+
+
+def test_mol_from_sdf_text_accepts_a_record_ending_in_the_sdf_delimiter():
+    assert align.mol_from_sdf_text(_molblock_3d("CCO") + "$$$$\n").GetNumAtoms() == 9
+
+
+def test_mol_from_sdf_text_rejects_zero_or_several_molecules():
+    block = _molblock_3d("CCO") + "$$$$\n"
+    for text in ("", "not an sdf file\n", block + block):
+        with pytest.raises(AlignmentError, match="Expected one molecule"):
+            align.mol_from_sdf_text(text)
+
+
+def test_mol_from_sdf_text_requires_3d_coordinates_unless_told_otherwise():
+    flat = Chem.MolFromSmiles("CCO")
+    Chem.rdDepictor.Compute2DCoords(flat)
+    text = Chem.MolToMolBlock(flat)
+    with pytest.raises(AlignmentError, match="no 3D coordinates"):
+        align.mol_from_sdf_text(text)
+    assert align.mol_from_sdf_text(text, require_3d=False).GetNumAtoms() == 3
+
+
 @pytest.mark.parametrize("stem", ANALOG_STEMS)
 def test_align_to_reference_reports_atom_map_and_rmsd(fresh_reference_mol, stem):
     mol = _fresh_analog_mol(stem)

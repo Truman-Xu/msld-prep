@@ -155,6 +155,58 @@ def load_ligand_set_from_sdf(
     return reference, analogs
 
 
+def _check_3d(mol: Chem.Mol, source: str) -> None:
+    if mol.GetNumConformers() == 0 or not mol.GetConformer().Is3D():
+        msg = f"{source} has no 3D coordinates; a reference to align onto needs them."
+        logger.error(msg)
+        raise AlignmentError(msg)
+
+
+def mol_from_mol2_text(text: str, *, require_3d: bool = True) -> Chem.Mol:
+    """Parse one molecule from mol2 text, keeping explicit Hs and sanitizing,
+    so a mol2 upload needs no temp file. Atoms carry `_TriposAtomName`.
+    Raises AlignmentError if the text is not a single readable molecule, or
+    (unless `require_3d` is False) has no 3D coordinates.
+    """
+    try:
+        mol = Chem.MolFromMol2Block(text, sanitize=True, removeHs=False)
+    except Exception as exc:  # RDKit's parse errors are not a documented, closed set
+        msg = f"Could not parse mol2 text: {exc!r}"
+        logger.error(msg)
+        raise AlignmentError(msg) from exc
+    if mol is None:
+        msg = "Could not parse mol2 text."
+        logger.error(msg)
+        raise AlignmentError(msg)
+    if require_3d:
+        _check_3d(mol, "The mol2 text")
+    return mol
+
+
+def mol_from_sdf_text(text: str, *, require_3d: bool = True) -> Chem.Mol:
+    """Parse exactly one molecule from sdf (or mol block) text, keeping
+    explicit Hs and sanitizing, so an sdf upload needs no temp file.
+    Raises AlignmentError if the text holds no molecule, more than one, an
+    unreadable one, or (unless `require_3d` is False) one without 3D
+    coordinates.
+    """
+    supplier = Chem.SDMolSupplier()
+    supplier.SetData(text, sanitize=True, removeHs=False)
+    count = len(supplier)
+    if count != 1:
+        msg = f"Expected one molecule in the sdf text, found {count}."
+        logger.error(msg)
+        raise AlignmentError(msg)
+    mol = supplier[0]
+    if mol is None:
+        msg = "Could not parse the molecule in the sdf text."
+        logger.error(msg)
+        raise AlignmentError(msg)
+    if require_3d:
+        _check_3d(mol, "The sdf text")
+    return mol
+
+
 def _bond_path_for_atoms(atom_ids: Sequence[int], mol: Chem.Mol) -> list[int]:
     atom_set = set(atom_ids)
     return [
