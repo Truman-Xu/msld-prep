@@ -152,6 +152,7 @@ specific to it.
 | The suite also passes, 136 passed, against the latest PyPI crimm (2026.2.2, wheel installed with `--no-deps` into a scratch directory and put first on `PYTHONPATH`). | `[ran 2026-10-08]` |
 | Tools are found through environment variables, else `PATH`: `MSLDPREP_CGENFF_PATH` (program), `MSLDPREP_CGENFF_BASE_PRM` (base prm; default `par_all36_cgenff.prm` beside the program; the root script and tests use that default, the CLI omits `-p` if unset), `MSLDPREP_OBABEL_PATH` (obabel). With none found, 5 CGenFF tests and 53 OpenBabel tests skip. Installs that work here: `/export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/cgenff` and `/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel`; crimm's handoff names a different CGenFF (`.../src/2026/silcsbio.2026.1-alpha/...`). `obabel` is not on `PATH` in a non-activated shell. | `[ran 2026-10-08]` |
 | `tests/test_writers.py::test_downstream_msld_prm_contract` imports `msld_prm` from `/home/ziqiaoxu/msld-py-prep` and runs it. | `[read]`, `[ran]` passes |
+| A plain `git push` fails here: the remote is https, there is no credential helper and no display for askpass. Worked, without changing any git config: `git -c credential.helper= -c "credential.helper=!/home/ziqiaoxu/.conda/envs/crimm-dev/bin/gh auth git-credential" push origin main`, with `GIT_TERMINAL_PROMPT=0`. Check `git push --dry-run` first (G14). | `[ran 2026-10-12]` |
 | Branch `main`, tracking `origin/main` (`https://github.com/Truman-Xu/msld-prep.git`, **public**, issues enabled), pushed 2026-10-08. `gh` is at `/home/ziqiaoxu/.conda/envs/crimm-dev/bin/gh`, logged in as `Truman-Xu` (scopes `repo`, `read:org`, `admin:public_key`, `gist`). `gh` is not on `PATH`. | `[ran 2026-10-08]` |
 
 Commands that work `[ran 2026-10-08]`:
@@ -173,6 +174,8 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G1 | Running anything that imports crimm without `python -B` rewrites `.pyc` files inside `/home/ziqiaoxu/crimm`. They are gitignored and harmless, but they are writes into a project you must not touch. Use `-B` or `PYTHONDONTWRITEBYTECODE=1`. | `[ran 2026-10-08: 41 files refreshed by a run without -B]` |
 | G2 | Because crimm is an editable install from `/home/ziqiaoxu/crimm`, whichever crimm branch is checked out there decides what msldprep sees. It was `cleanup/phase0-tests-and-dev-docs` on 2026-10-08. A test failure here may come from that, not from this repo. | `[ran 2026-10-08]` |
 | G3 | `ConstrainedEmbed` is not fully deterministic, which is why `build` reloads the aligned conformers from `{aligned_dir}/aligned_ligands.sdf` instead of re-aligning. Do not "simplify" step 2 to re-run alignment. | `[read pipeline.py docstring]` |
+| G3a | SUPERSEDED in part 2026-10-12 by claude-sonnet/claude-code/m0-align-api, for G3's claim only: RDKit's `ConstrainedEmbed` defaults to `randomseed=2342`, and the same analog aligned twice onto the same reference in one process gave identical coordinates (3 ChEMBL analogs, `np.allclose` and exact equality in the new tests). So the observed unreliability is not run-to-run noise for identical input. What was *not* checked: whether a different atom order, RDKit version, platform or reference conformer changes the embed, which may be what G3 saw. Keep reloading the sdf in `build`; do not rely on this to re-align. `align_to_reference(..., seed=)` now exposes the seed. | `[ran 2026-10-12]` |
+| G15 | `align.prepare_ligand_set` / `assign_isotope_labels` set isotope labels on the **reference** `Mol` too. A labeled reference no longer matches an unlabeled analog, so `align_common_core` / `align_to_reference` then raise `ValueError: molecule doesn't match the core`. Align before labeling, or use a freshly loaded reference (the new tests do). The session-scoped `reference_ligand` fixture in `tests/conftest.py` is labeled once `prepared_ligand_set` has run. The GUI must use a copy and never label. | `[ran 2026-10-12]` |
 | G4 | Aligned ligands are stored as one sdf, not per-ligand mol2, because RDKit's mol2 reader sometimes fails to re-kekulize an aromatic ring. Atom names ride in the `AtomNames` data field. | `[read align.py]` |
 | G5 | CGenFF atom types are carried on RDKit atoms as the `CGENFFAtomType` property and grouped via isotope labels starting at 300 (`align.py`). Do not use isotopes for anything else in this package. | `[read]` |
 | G6 | `msldprep/sybyl_typing_data.py` is generated from `data/atomtyp.txt` and `data/types.txt`. Edit the generator or inputs, then rerun it. | `[read]` |
@@ -193,11 +196,12 @@ Rewrite in place. True as of `2026-10-12`.
 git:
   branch: main
   remote: origin https://github.com/Truman-Xu/msld-prep.git   # public, tracking origin/main
-  commits: five (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
+  commits: nine (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
            examples, environment variables for tool paths, the unpublished-structures handoff
-           entry, then the push-day docs commit; a sixth, local commit (handoff: crimm hotfix
-           path, GUI plan, learning-plan intent) was made 2026-10-12
-  pushed: first five only          # 2026-10-08, at the owner's request (section 2); the sixth is not pushed
+           entry, then the push-day docs commit; on 2026-10-12 the handoff commit (crimm hotfix
+           path, GUI plan, learning-plan intent), `align_to_reference` (#3) and the text loaders (#3),
+           then this docs update
+  pushed: true                     # 2026-10-08 (first five) and 2026-10-12 (sixth, `6ccb1bd`), each at the owner's request (section 2)
   branch_protection: none          # not set
 github:
   issues: ["#1 reference and analog protonation states can mismatch", "#2 respect chirality of molecules through the pipeline",
@@ -231,7 +235,7 @@ not_written_on_purpose:
   - docs/dev/ROADMAP.md
   - docs/dev/NOTES.md
   - CI workflow
-test_suite: {passed: 136, skipped: 0, date: 2026-10-08, env: crimm-dev, tool variables: set}
+test_suite: {passed: 151, skipped: 0, date: 2026-10-12, env: crimm-dev, tool variables: set}   # 136 plus 15 new in tests/test_align.py (M0, committed)
 test_suite_without_tool_variables: {passed: 78, skipped: 58, date: 2026-10-08}
 env: crimm-dev                     # no separate env file
 crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul
@@ -289,6 +293,28 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-12 claude-sonnet/claude-code/m0-align-api
+
+- asked: work on M0 (issue #3) after the handoff push.
+- did, in `msldprep/align.py` (additions only; no existing signature or output changed):
+  `align_to_reference(mol, ref_mol, *, mcs=McsOptions(), seed=DEFAULT_EMBED_SEED) -> CoreAlignment`
+  (core query mol, `atom_map` aligned-mol index to reference index, `rmsd`, `seed`);
+  `McsOptions(complete_rings_only, ring_matches_ring_only, timeout)`; `align_common_core` is now a
+  thin wrapper returning `.core`; `mol_from_mol2_text` and `mol_from_sdf_text` (explicit Hs,
+  sanitized, `AlignmentError` on unreadable, empty, several molecules, or no 3D coordinates).
+  15 new tests in `tests/test_align.py`. Committed as two commits at the owner's request (API: 144 passed on its own; loaders: 151 passed). `[ran]`
+- verified `[ran]`: 151 passed, 0 skipped with `MSLDPREP_CGENFF_PATH` and `MSLDPREP_OBABEL_PATH`
+  set (136 before); defaults reproduce the old result (`align_common_core` returns a core with the
+  same atoms and bonds); `rmsd` is read from RDKit's `EmbedRMS` mol property (the owner pointed this out; my first version recomputed it) and a test recomputes it from the coordinates to 1e-6; atom map is one-to-one with
+  matching elements.
+- not verified: `ConstrainedEmbed` determinism across atom orders, platforms or RDKit versions
+  (G3a); the atom map when the core matches the analog in several symmetric ways (the first
+  match is used, as RDKit's embed does; documented, not tested); behaviour with an MCS timeout that
+  actually fires; single-atom MCS (empty bond path, pre-existing).
+- found: G3a, G15. Issue #3 says the library "takes no random seed"; true of our wrapper, but RDKit
+  already seeds with 2342, so seed control is for choosing alternatives, not for fixing noise.
+- next: close #3 once the owner is satisfied (its three gaps are done: atom map and RMSD, seed and MCS options, text loaders); then M1 (#4), the session service. Issue #3 says the library "takes no random seed" (see found).
 
 ### 2026-10-12 claude-sonnet/claude-code/gui-plan-and-learning-intent
 
