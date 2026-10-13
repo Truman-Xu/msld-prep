@@ -7,7 +7,7 @@ from msldprep import align
 from msldprep.datamodel import LigandRecord
 from msldprep.errors import AlignmentError
 
-from .conftest import ANALOG_STEMS, REFERENCE_STEM
+from .conftest import ANALOG_STEMS, CHEMBL_DIR, REFERENCE_STEM
 
 
 def test_load_ligand_real_data(reference_ligand):
@@ -125,3 +125,88 @@ def test_load_ligand_set_from_sdf_reattaches_cgenff_types(tmp_path):
     assert reference.mol.GetNumAtoms() == mol.GetNumAtoms()
     for atom in reference.mol.GetAtoms():
         assert atom.GetProp("CGENFFAtomType") == "CG331"
+
+
+def _fresh_mol(stem: str) -> Chem.Mol:
+    return align.load_ligand(
+        os.path.join(CHEMBL_DIR, f"{stem}.mol2"),
+        os.path.join(CHEMBL_DIR, f"{stem}.rtf"),
+        os.path.join(CHEMBL_DIR, f"{stem}.prm"),
+        name=stem,
+    ).mol
+
+
+def _fresh_analog_mol(stem: str) -> Chem.Mol:
+    """An analog's Mol with no conformer, so each test aligns it from scratch."""
+    mol = _fresh_mol(stem)
+    mol.RemoveAllConformers()
+    return mol
+
+
+@pytest.fixture
+def fresh_reference_mol() -> Chem.Mol:
+    # Not the session-wide `reference_ligand`: `prepared_ligand_set` isotope-labels
+    # its atoms (G5), and a labeled reference no longer matches an unlabeled analog.
+    return _fresh_mol(REFERENCE_STEM)
+
+
+@pytest.mark.parametrize("stem", ANALOG_STEMS)
+def test_align_to_reference_reports_atom_map_and_rmsd(fresh_reference_mol, stem):
+    mol = _fresh_analog_mol(stem)
+    ref_mol = fresh_reference_mol
+
+    result = align.align_to_reference(mol, ref_mol)
+
+    assert len(result.atom_map) == result.core.GetNumAtoms() > 0
+    assert len(set(result.atom_map.values())) == len(result.atom_map)  # one-to-one
+    for mol_idx, ref_idx in result.atom_map.items():
+        assert mol.GetAtomWithIdx(mol_idx).GetSymbol() == ref_mol.GetAtomWithIdx(ref_idx).GetSymbol()
+    # the tethered embed lands on the reference core; recompute the RMSD
+    # from the coordinates to check the figure RDKit reports
+    assert result.rmsd < 0.1
+    mol_xyz = mol.GetConformer().GetPositions()
+    ref_xyz = ref_mol.GetConformer().GetPositions()
+    squared = [((mol_xyz[i] - ref_xyz[j]) ** 2).sum() for i, j in result.atom_map.items()]
+    assert result.rmsd == pytest.approx((sum(squared) / len(squared)) ** 0.5, abs=1e-6)
+    assert result.seed == align.DEFAULT_EMBED_SEED
+
+
+def test_align_to_reference_is_reproducible_for_a_seed(fresh_reference_mol):
+    stem = ANALOG_STEMS[0]
+
+    def coords(**kwargs):
+        mol = _fresh_analog_mol(stem)
+        align.align_to_reference(mol, fresh_reference_mol, **kwargs)
+        return mol.GetConformer().GetPositions()
+
+    default = coords()
+    assert (coords() == default).all()
+    assert (coords(seed=align.DEFAULT_EMBED_SEED) == default).all()
+    assert (coords(seed=7) == coords(seed=7)).all()
+    assert not (coords(seed=7) == default).all()
+
+
+def test_align_common_core_still_returns_the_core_query_mol(fresh_reference_mol):
+    stem = ANALOG_STEMS[0]
+    core = align.align_common_core(_fresh_analog_mol(stem), fresh_reference_mol)
+    expected = align.align_to_reference(_fresh_analog_mol(stem), fresh_reference_mol).core
+    assert core.GetNumAtoms() == expected.GetNumAtoms()
+    assert core.GetNumBonds() == expected.GetNumBonds()
+
+
+@pytest.mark.parametrize(
+    "options",
+    [align.McsOptions(ring_matches_ring_only=True), align.McsOptions(timeout=30)],
+)
+def test_align_to_reference_accepts_mcs_options(fresh_reference_mol, options):
+    result = align.align_to_reference(_fresh_analog_mol(ANALOG_STEMS[0]), fresh_reference_mol, mcs=options)
+    assert result.atom_map
+    assert result.rmsd < 0.1
+
+
+def test_align_to_reference_raises_value_error_without_a_shared_substructure():
+    water = Chem.AddHs(Chem.MolFromSmiles("O"))
+    sodium = Chem.AddHs(Chem.MolFromSmiles("[Na+]"))
+    Chem.rdDistGeom.EmbedMolecule(sodium, randomSeed=1)
+    with pytest.raises(ValueError, match="no shared substructure"):
+        align.align_to_reference(water, sodium)
