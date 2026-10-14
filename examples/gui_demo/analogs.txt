@@ -1,0 +1,39 @@
+# SMILES and name, one analog per line: the congeneric ChEMBL series of
+# examples/2_ChEMBL (configs/chembl_congeneric_from_files.yaml). Use with the
+# reference examples/2_ChEMBL/11896.mol2. Public data; two lines are deliberately
+# not alignable (ethanol, nonsense) to show how failures are reported.
+Oc1ccc2c(Nc3cccc(Br)c3)ncnc2c1 10749
+CCOc1cc2ncnc(Nc3cccc(F)c3)c2cc1OCC 11738
+Oc1cc2ncnc(Nc3cccc(Br)c3)c2cc1O 11774
+C=CC(=O)Nc1ccc2ncnc(Nc3ccccc3C)c2c1 13061
+Nc1ccc2ncnc(Nc3cccc(C(F)(F)F)c3)c2c1 13409
+C=CC(=O)Nc1ccc2ncnc(Nc3cccc(Cl)c3)c2c1 13770
+CNc1cc2ncnc(Nc3cccc(Br)c3)c2cc1N 15342
+CN(C)c1ccc2c(Nc3cccc(Br)c3)ncnc2c1 15405
+CN(C)c1ccc2ncnc(Nc3cccc(Br)c3)c2c1 17206
+COc1cccc2ncnc(Nc3cccc(Br)c3)c12 175
+C[C@@H](O)C#Cc1ccc2ncnc(Nc3ccc(F)c(Cl)c3)c2c1 17631
+Nc1cccc2c(Nc3cccc(Br)c3)ncnc12 17933
+OCC#Cc1ccc2ncnc(Nc3ccc(F)c(Cl)c3)c2c1 20185
+COc1ccc(Cl)c(Nc2ncnc3cc(OC)c(OC)cc23)c1 2202
+Fc1cccc(Nc2ncnc3ccc(Br)cc23)c1 2574
+OCCC#Cc1ccc2ncnc(Nc3ccc(F)c(Cl)c3)c2c1 3978
+C#CCOc1cc2c(Nc3cccc(Cl)c3)ncnc2cc1OC 4433
+Nc1ccc2c(Nc3cccc(Br)c3)ncnc2c1 5126
+C=CC(=O)Nc1ccc2c(Nc3cccc(C)c3)ncnc2c1 5599
+COc1cc2ncnc(Nc3ccc(C)cc3C)c2cc1OC 6271
+COc1cccc2c(Nc3cccc(Br)c3)ncnc12 6299
+C=CC(=O)Nc1ccc2c(Nc3cccc(Cl)c3)ncnc2c1 6744
+Brc1ccc2ncnc(Nc3ccccc3)c2c1 6875
+C#Cc1cc2c(Nc3ccc(F)c(Cl)c3)ncnc2cc1OC 7179
+COc1cc2ncnc(Nc3ccccc3C(F)(F)F)c2cc1OC 7196
+Nc1cccc2ncnc(Nc3cccc(Br)c3)c12 7395
+COc1ccc2c(Nc3cccc(Br)c3)ncnc2c1 8096
+Oc1ccc(Nc2ncnc3ccc(Br)cc23)cc1 8351
+COc1ccc2ncnc(Nc3cccc(Br)c3)c2c1 8492
+COc1ccc(Cl)c(Nc2ncnc3cc(OC)cc(OC)c23)c1 8711
+Nc1ccc2c(Nc3cccc(C(F)(F)F)c3)ncnc2c1 9439
+COc1cc2c(Nc3cccc(F)c3F)ncnc2c(OC)c1OC 9538
+COc1cc2ncnc(Nc3cccc(Br)c3)c2cc1N 9842
+CCO ethanol
+nonsense bad_smiles

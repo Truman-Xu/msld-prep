@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>msld-prep alignment</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Align analogs to a reference</h1>
+  <span id="banner" class="banner" role="status"></span>
+  <button id="reset" class="quiet" title="Forget the reference, the analogs and all results">Start over</button>
+</header>
+
+<main>
+  <aside id="left">
+    <section>
+      <h2><span class="step">1</span> Reference</h2>
+      <p class="hint">A mol2 or sdf with 3D coordinates, e.g. the ligand from the crystal structure.</p>
+      <label class="file"><input type="file" id="reference-file" accept=".mol2,.sdf,.mol"><span>Choose file</span></label>
+      <label class="check" title="RDKit's Uncharger, as in the notebook. Needed when the reference is charged and the analogs are written neutral."><input type="checkbox" id="neutralize"> Remove charges from the reference</label>
+      <div id="reference-info" class="info"></div>
+    </section>
+
+    <section>
+      <h2><span class="step">2</span> Analogs</h2>
+      <p class="hint">One per line: <code>SMILES name</code>. A table with a name column also works.</p>
+      <textarea id="analogs-text" rows="5" spellcheck="false" placeholder="c1ccccc1O  phenol"></textarea>
+      <div class="row">
+        <label class="file small"><input type="file" id="analogs-file" accept=".txt,.csv,.smi,.tsv"><span>Open file</span></label>
+        <button id="analogs-load">Use these analogs</button>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="step">3</span> Align</h2>
+      <details>
+        <summary>Settings</summary>
+        <label class="check"><input type="checkbox" id="p-complete" checked> Match whole rings only</label>
+        <label class="check"><input type="checkbox" id="p-ringring"> Ring atoms match ring atoms only</label>
+        <div class="row">
+          <label>Core search time limit (s) <input type="number" id="p-timeout" min="0" max="3600" value="0" title="0 = RDKit's default"></label>
+          <label>Seed <input type="number" id="p-seed" min="0" value="2342"></label>
+        </div>
+      </details>
+      <button id="align" class="primary" disabled>Align all</button>
+      <progress id="progress" value="0" max="1" hidden></progress>
+    </section>
+
+    <section class="grow">
+      <h2>Analogs <span id="count" class="count"></span></h2>
+      <ul id="list" role="listbox" aria-label="Analogs"></ul>
+    </section>
+  </aside>
+
+  <section id="center">
+    <div id="viewer-wrap">
+      <div id="viewer"></div>
+      <div id="empty" class="empty">Load a reference and analogs, then align.</div>
+      <div id="toolbar">
+        <label class="check"><input type="checkbox" id="t-overlay"> Overlay all aligned</label>
+        <label class="check"><input type="checkbox" id="t-hydrogens"> Hydrogens</label>
+        <label class="check" title="Color the reference's atoms by element; off shows it in gray"><input type="checkbox" id="t-color"> Color reference by element</label>
+        <button id="t-reset" class="quiet">Reset view</button>
+      </div>
+      <div id="legend"><span class="sw ref"></span> reference <span id="elements"></span> <span class="sw core"></span> matched core <span class="sw rest"></span> rest of analog</div>
+    </div>
+  </section>
+
+  <aside id="right">
+    <section>
+      <h2 id="detail-title">Details</h2>
+      <div id="detail" class="detail"><p class="hint">Select an analog from the list.</p></div>
+    </section>
+    <section id="actions" hidden>
+      <h2>Review</h2>
+      <div class="row">
+        <button id="accept" class="ok">Accept <kbd>A</kbd></button>
+        <button id="reject" class="bad">Reject <kbd>R</kbd></button>
+      </div>
+      <div class="row">
+        <label>Seed <input type="number" id="r-seed" min="0" value="1"></label>
+        <button id="realign">Align again</button>
+      </div>
+      <p class="hint">A different seed gives another pose of the part that is free to move.</p>
+    </section>
+    <section>
+      <h2>Download</h2>
+      <div class="row">
+        <select id="d-which"><option value="accepted">Accepted only</option><option value="aligned">All aligned, not rejected</option></select>
+        <a id="download" class="button" href="#">Download sdf</a>
+      </div>
+      <p class="hint">The reference comes first, then the analogs. Nothing is stored on the server.</p>
+    </section>
+  </aside>
+</main>
+
+<script src="/static/3Dmol-min.js"></script>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>
