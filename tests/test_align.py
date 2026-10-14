@@ -258,3 +258,36 @@ def test_align_to_reference_raises_value_error_without_a_shared_substructure():
     Chem.rdDistGeom.EmbedMolecule(sodium, randomSeed=1)
     with pytest.raises(ValueError, match="no shared substructure"):
         align.align_to_reference(water, sodium)
+
+
+def _embedded(smiles: str) -> Chem.Mol:
+    mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
+    Chem.rdDistGeom.EmbedMolecule(mol, randomSeed=1)
+    return mol
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=ValueError,
+    reason="#9 (docs/dev/ISSUES_AND_PLANS.md): the core query built from the reference requires its "
+    "formal charges, so a neutral analog does not match it: \"molecule doesn't match the core\"",
+)
+@pytest.mark.parametrize(
+    "reference_smiles, analog_smiles",
+    [
+        ("c1ccc2c(c1)c([nH+]cn2)Nc1cccc(Br)c1", "Oc1ccc2c(Nc3cccc(Br)c3)ncnc2c1"),  # charged ring N in the reference
+        ("c1ccc2c(c1)c(ncn2)[NH2+]c1cccc(Br)c1", "Oc1ccc2c(Nc3cccc(Br)c3)ncnc2c1"),  # charged exocyclic N
+    ],
+    ids=["ring-N-in-reference", "exocyclic-N-in-reference"],
+)
+def test_align_to_reference_matches_atoms_whatever_their_charge(reference_smiles, analog_smiles):
+    result = align.align_to_reference(_embedded(analog_smiles), _embedded(reference_smiles))
+    assert result.atom_map
+
+
+def test_a_charged_analog_aligns_onto_a_neutral_reference():
+    # the other direction of #9 works today: only a charged *reference* breaks the match
+    result = align.align_to_reference(
+        _embedded("Oc1ccc2c(Nc3cccc(Br)c3)[nH+]cnc2c1"), _embedded("c1ccc2c(c1)c(ncn2)Nc1cccc(Br)c1")
+    )
+    assert result.atom_map
