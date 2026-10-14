@@ -59,13 +59,14 @@ Template for a feature:
 
 | ID | Title | Kind | Status | Test |
 | --- | --- | --- | --- | --- |
-| #9 | Alignment fails with "molecule doesn't match the core" when the **reference** has a charged atom | bug | open, cause found, workaround in the GUI | `tests/test_align.py::test_align_to_reference_matches_atoms_whatever_their_charge` (strict `xfail`) |
+| #9 | Alignment fails with "molecule doesn't match the core" when the **reference** has a charged atom | bug | **fixed 2026-10-14**, closes with the commit that says `Closes #9` | `tests/test_align.py::test_align_to_reference_matches_atoms_whatever_their_charge` (the `xfail` marker is removed) |
+| P-1 | Which symmetric match is embedded is arbitrary, so a ring can come out flipped | bug (suspected) | open, seen once, not judged | none yet |
 | #1 | Reference and analog protonation states can mismatch | correctness | open, not reproduced | none yet |
 | #2 | Respect chirality of molecules through the pipeline | correctness | open, not reproduced | none yet |
 
 ### #9 Matching the common structure regardless of charge
 
-- **Status:** open. GitHub issue #9, created 2026-10-14.
+- **Status:** fixed 2026-10-14 (see **Fix**); GitHub issue #9, created the same day.
 - **Found:** 2026-10-14 by the owner, using the alignment GUI: a reference with a charged
   nitrogen gave "molecule doesn't match the core". Reproduced and diagnosed the same day with
   public data (below).
@@ -95,22 +96,47 @@ Template for a feature:
 - **Wanted:** the common structure is found and used by element and connectivity, whatever the
   charges of the atoms in it. If a reference and an analog differ in net charge, say so in a
   clear message (this overlaps #1) instead of reporting a failed match.
+- **Related, found 2026-10-14 on the owner's real data:** a reference file whose rings carry
+  formal charges (net +3) is perceived by RDKit as non-aromatic in the fused ring system, while the
+  analogs' rings are aromatic. Strict bond comparison then mismatched 10 ring bonds and
+  `completeRingsOnly` dropped both rings (core 20 of 32 atoms). `McsOptions.ignore_bond_orders`
+  fixes it (core 31 to 33 atoms). Removing charges does not (`Uncharger` leaves the N+ of an
+  iminium-like ring nitrogen). Cleaning such a reference (re-assigning aromatic bond orders) is not
+  planned; it matters for #1 (protonation states).
 - **Workaround:** the GUI option "Remove charges from the reference" (RDKit's `Uncharger`, as
   in the notebook) neutralizes the reference first; with it, the first two cases above align
   (`[ran]`). The GUI also adds a hint to the error when the reference is charged. Removing the
   charge changes the molecule, so use it only when the analogs really are neutral.
-- **Directions for a fix, not decided:** (a) build the core query from element-only atoms
-  instead of `PathToSubmol(useQuery=True)`; (b) use the atom pairs `FindMCS` already gives us
-  and embed with them directly (`EmbedMolecule(coordMap=...)`) instead of letting
-  `ConstrainedEmbed` match again; (c) neutralize both sides before matching. Each changes what
-  is aligned in the charged case, so the owner decides after seeing what a charged reference
-  should mean for MSLD (#1).
+- **Fix** (2026-10-14, `[ran]`): `align_to_reference` no longer rebuilds a core query from the
+  reference and matches it again. It matches the query that `FindMCS` returned (element-only
+  atoms) back onto both molecules and embeds with those atom pairs, in the helper
+  `_embed_onto_reference`, adapted from RDKit's `ConstrainedEmbed`. Charges, hydrogen counts and
+  isotope labels (so also handoff G15) no longer matter. On 33 demo analogs the new code gave the
+  same atom map and coordinates within 0.03 angstrom for 32, and a different but equally good
+  symmetric map for one (see P-1).
 - **Test:** `tests/test_align.py::test_align_to_reference_matches_atoms_whatever_their_charge`
-  (two cases, `xfail(strict=True)`, reason names this entry), plus
-  `test_a_charged_analog_aligns_onto_a_neutral_reference`, which passes today and must keep
-  passing.
+  (two cases; it was a strict `xfail` and became a plain test with the fix), plus
+  `test_a_charged_analog_aligns_onto_a_neutral_reference` and
+  `test_the_core_is_matched_by_element_so_an_isotope_labeled_reference_still_aligns`.
 - **Not checked:** the effect on the rest of the pipeline (typing, the shared core search,
   charge renormalization) when charged atoms are present at all.
+
+### P-1 The symmetric match that is embedded is arbitrary
+
+- **Status:** open, provisional ID (no GitHub issue yet).
+- **Found:** 2026-10-14 while checking the fix for #9.
+- **What happens:** when the common structure matches a molecule in more than one way (a
+  symmetric ring, or two equivalent substituents), `GetSubstructMatch` returns the first match
+  and that one is embedded. Which one comes first is an accident of the query. Two ways of
+  building the query for the same MCS gave different atom maps for one of 34 demo analogs,
+  and the two poses differ by up to 4 angstrom in places, with the same core RMSD (0.033).
+- **Cause:** suspected, `[read]`: all matches have equal core RMSD for a symmetric core, so
+  nothing in the code prefers one.
+- **Wanted:** among the matches, embed the one that puts the atoms outside the core where the
+  reference has atoms (or the one with the least clash), or let the user flip it in the GUI.
+- **Not checked:** which of the two poses is closer to the reference's non-core atoms; whether
+  the owner's flipped-ring cases (workshop notebook, "check the ring is not flipped") are this
+  problem; how often it happens on the real series.
 
 ## Planned features
 
@@ -128,6 +154,7 @@ Unordered. Nothing here is scheduled.
 | F-8 | A web GUI for the whole preparation, not only alignment | owner's goal | F-6, F-7 | none | |
 | F-9 | Compare the old and new pipelines on real MSLD runs | decide the design with evidence | learning plan, CHARMM basics from colleagues | none | |
 | F-11 | Option to keep the original atom names in the mol2 export | the owner's choice to rename is deliberate (CGenFF), but some uses need the original names | F-3 | #10 | default stays "new unique names"; refuse kept names that are duplicated or longer than four characters |
+| F-12 | Manual tuning of an aligned analog in the GUI: rotate a bond to fix a small misalignment | the constrained embed can leave a free part in a slightly wrong pose | F-1 | none yet | 3Dmol.js has no bond-rotation tool (checked 2026-10-14: no torsion or dihedral code in the bundled 2.4.2), only atom picking (`setClickable`, `setHoverable`) and `setCoordinates`. Likely design: pick a bond in the page, send it with an angle to the server, rotate the atoms on the side that holds no matched-core atom with RDKit (`rdMolTransforms`), return the new coordinates, show clashes. The core must stay fixed. Not decided |
 | F-10 | Learning plan for the original `msld-py-prep` | prerequisite of the roadmap | none | none | postponed until after the GUI demo; seed in handoff Q13 |
 
 ## Deliberate behaviors
@@ -173,4 +200,6 @@ order with reasons, and link each to its issue.
 | 2026-10-14 | Alignment GUI first slice: load a reference and analog SMILES, constrained embed, 3D and 2D views, accept or reject, align again with a seed, sdf download | F-1; `msldprep/gui/`, uncommitted when written |
 | 2026-10-14 | GUI option to remove charges from the reference with `Uncharger` (the notebook's step) | `msldprep/gui/service.py::neutralize` |
 | 2026-10-14 | GUI toggle to color the reference by element; gray when off | `msldprep/gui/static/app.js` |
+| 2026-10-14 | Alignment matches by element and ignores charges and hydrogen counts; option to ignore bond orders so tautomers and protonation variants match in full (on by default in the GUI) | #9; `msldprep/align.py::align_to_reference`, `McsOptions.ignore_bond_orders` |
+| 2026-10-14 | Collapsible 2D drawing of the reference in panel 1; with an analog selected, the atoms it matched are marked | `msldprep/gui/static/app.js::renderReference2D`, `ligand_view()["reference_svg"]` |
 | 2026-10-14 | GUI download as sdf or mol2 (the notebook's Sybyl typing and mol2 writer), one file or one file per structure (zip), with or without the reference | F-3, #7; `msldprep/gui/service.py::AlignmentSession.export` |

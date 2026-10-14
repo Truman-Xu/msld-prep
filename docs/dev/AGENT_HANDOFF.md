@@ -127,6 +127,7 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-08 | The working env is `crimm-dev` if it satisfies every dependency of this project. It does (see section 3). | `[told]` |
 | 2026-10-12 | Project goal: a streamlined pipeline with only the inputs and outputs MSLD needs, in-memory objects for intermediate stages (fewer saved files), and a robust, user-friendly web GUI with visualization tailored to this process. | `[told]` |
 | 2026-10-12 | Working item 1: a web GUI for **only the alignment step** that `align.ipynb` runs. Runs on the cluster, reached by SSH tunnel. Stack: FastAPI backend plus small JS front end with 3Dmol.js; the later full app reuses the API. Input: reference with 3D coordinates as **mol2 or sdf** (no CRD, so no crimm hotfix) plus analog SMILES. Output: aligned sdf and one Sybyl-typed mol2 per analog. No CGenFF call in the GUI. Plan: `/home/ziqiaoxu/.claude/plans/thank-you-for-the-valiant-sonnet.md` (milestones M0 to M5); not started. | `[told]` |
+| 2026-10-14 | The owner reports that different protonation states of the same ring (`c(=O)[nH]c` against `c(=O)nc`) make RDKit's substructure match treat structures as different, hurting alignment quality, and wants it resolved first: relax the match on protonation states, or log the states, match, align and put the protons back. Local files for this: `sil.mol2` (reference) and `panel_a.smi` (analogs); both belong to the unpublished series (G12). | `[told]` |
 | 2026-10-14 | The mol2 export's renaming of every atom and its missing charges are **deliberate**, because CGenFF only accepts unique short names and computes its own charges. Document it (done: README, `ISSUES_AND_PLANS.md` \"Deliberate behaviors\"), and plan an option to keep the original names (#10, F-11). Rewrite #4 and #8 to match the work (done). Push the commits (done). | `[told]` |
 | 2026-10-14 | **Every commit that finishes an issue ends its message with `Closes #N`**, on its own line above the `Co-Authored-By` trailer; a commit that only works toward an issue says `Part of #N`. Written into `CONTRIBUTING.md`. Apply it from the next commit on. | `[told]` |
 | 2026-10-14 | Next GUI requests: save the aligned structures as mol2 (the notebook's Sybyl typing and mol2 writer), and an option "one structure per file" for individual sdf or mol2 files; file a GitHub issue for the unfixed charged-reference bug (done: #9); make a separate commit for each issue worked on. The owner reports that all visualization features work. Pushed the four earlier commits at the owner's request; the commits made after that request are local. | `[told]` |
@@ -187,7 +188,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G16 | The GUI runs one in-memory `AlignmentSession` per server, so two people on one server share and overwrite each other's work. The access token is the only protection, and the login node is shared: do not leave a server running with a guessable token (I tested with `demo123` and stopped it). The default port is a free one picked at start, because 8765 was already taken by another user's server on 2026-10-14. | `[ran 2026-10-14]` |
 | G17 | An agent cannot see the 3D view here: headless Firefox 140 on this node has no WebGL even with software-GL preferences (`webgl: False`), so `draw()` in `static/app.js` was **not** run in a browser. What was run in a real browser (Firefox through Marionette on port 2828, a throwaway profile): the whole page flow (load, align, select, accept, align again, download link) with no JavaScript errors, and 3Dmol's per-atom selection by `serial` (29 atoms, 17 core, 0 mismatches). To drive a headless browser from here, speak the Marionette protocol directly; there is no selenium or playwright. `pkill -f <pattern>` matches the agent's own shell command and kills it; use `pgrep`, then `kill <pid>`. | `[ran 2026-10-14]` |
 | G17a | SUPERSEDES G17's "no WebGL" for this node, `[ran 2026-10-14]`: WebGL works in Firefox 140 with Mesa's software renderer (`llvmpipe`) on a virtual display. Nothing was installed: `/usr/bin/Xvnc` and Mesa's `swrast_dri.so` are system packages. Recipe: `Xvnc :77 -geometry 1500x1000 -depth 24 -rfbport -1 -nolisten tcp -SecurityTypes None -rfbunixpath <scratch>/vnc.sock &`, then `DISPLAY=:77 LIBGL_ALWAYS_SOFTWARE=1 firefox --marionette --no-remote --profile <throwaway profile> about:blank &`, with these in the profile's `user.js`: `webgl.force-enabled` true, `webgl.disabled` false, `layers.acceleration.disabled` true, `webgl.forbid-software` false, `webgl.disable-angle` false. Headless mode (`MOZ_HEADLESS`) did not get WebGL; software-WebRender prefs crashed Firefox. Drive it with `scratchpad`-style Marionette code (G17); `TakeScreenshot` then shows the 3D view. **Stop Firefox (Marionette listens on 127.0.0.1:2828) and Xvnc when done**: other users of the login node can reach loopback ports and the X socket. Kill by pid (`pgrep -x firefox`, `pgrep -x Xvnc`), not `pkill -f`. | `[ran 2026-10-14]` |
-| G15 | `align.prepare_ligand_set` / `assign_isotope_labels` set isotope labels on the **reference** `Mol` too. A labeled reference no longer matches an unlabeled analog, so `align_common_core` / `align_to_reference` then raise `ValueError: molecule doesn't match the core`. Align before labeling, or use a freshly loaded reference (the new tests do). The session-scoped `reference_ligand` fixture in `tests/conftest.py` is labeled once `prepared_ligand_set` has run. The GUI must use a copy and never label. | `[ran 2026-10-12]` |
+| G15 | **No longer true for alignment since 2026-10-14** (`align_to_reference` matches by element and ignores isotope labels); still true for anything that matches a query built from labeled atoms. Original text: `align.prepare_ligand_set` / `assign_isotope_labels` set isotope labels on the **reference** `Mol` too. A labeled reference no longer matches an unlabeled analog, so `align_common_core` / `align_to_reference` then raise `ValueError: molecule doesn't match the core`. Align before labeling, or use a freshly loaded reference (the new tests do). The session-scoped `reference_ligand` fixture in `tests/conftest.py` is labeled once `prepared_ligand_set` has run. The GUI must use a copy and never label. | `[ran 2026-10-12]` |
 | G4 | Aligned ligands are stored as one sdf, not per-ligand mol2, because RDKit's mol2 reader sometimes fails to re-kekulize an aromatic ring. Atom names ride in the `AtomNames` data field. | `[read align.py]` |
 | G5 | CGenFF atom types are carried on RDKit atoms as the `CGENFFAtomType` property and grouped via isotope labels starting at 300 (`align.py`). Do not use isotopes for anything else in this package. | `[read]` |
 | G6 | `msldprep/sybyl_typing_data.py` is generated from `data/atomtyp.txt` and `data/types.txt`. Edit the generator or inputs, then rerun it. | `[read]` |
@@ -208,13 +209,13 @@ Rewrite in place. True as of `2026-10-12`.
 git:
   branch: main
   remote: origin https://github.com/Truman-Xu/msld-prep.git   # public, tracking origin/main
-  commits: eighteen (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
+  commits: twenty-one (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
            examples, environment variables for tool paths, the unpublished-structures handoff
            entry, then the push-day docs commit; on 2026-10-12 the handoff commit (crimm hotfix
            path, GUI plan, learning-plan intent), `align_to_reference` (#3) and the text loaders (#3),
            then this docs update; on 2026-10-14 four GUI commits (service #4, page #6, API #5, the
-           charged-reference documentation #9), then the mol2 export (#7), the handoff update, and the 2026-10-14 documentation commits (Closes rule, deliberate behaviors and F-11, handoff)
-  pushed: through the mol2-export and handoff commits of 2026-10-14, each push at the owner's request (section 2)
+           charged-reference documentation #9), then the mol2 export (#7), the handoff update, and the 2026-10-14 documentation commits (Closes rule, deliberate behaviors and F-11, handoff), then three on the same day for #9: the matching rewrite, the GUI panel and setting, the docs
+  pushed: everything, including the three commits for #9 of 2026-10-14; each push at the owner's request (section 2)
   branch_protection: none          # not set
 github:
   issues: ["#1 reference and analog protonation states can mismatch", "#2 respect chirality of molecules through the pipeline",
@@ -238,6 +239,8 @@ excluded_locally_unpublished_series:   # .git/info/exclude; never commit (G12)
   - sil.rtf
   - cellz.yaml
   - cellz_build.yaml
+  - silp.mol2                      # added 2026-10-14: the owner's protonated reference (net charge +3), uploaded to the cluster that day
+  - panel_a.smi                    # added 2026-10-14: the owner's SMILES of three analogs; was untracked and NOT excluded until then
 untracked_awaiting_owner_decision: none   # TODO.md was deleted by the owner, 2026-10-14
 ignored_by_gitignore:
   - build.*/
@@ -250,8 +253,8 @@ not_written_on_purpose:
   - docs/dev/ROADMAP.md
   - docs/dev/NOTES.md
   - CI workflow
-test_suite: {passed: 190, skipped: 0, xfailed: 2, date: 2026-10-14, env: crimm-dev, tool variables: set}   # 136 + 15 (M0, committed) + 26 in tests/test_gui_service.py and tests/test_gui_app.py (uncommitted)
-test_suite_without_tool_variables: {passed: 132, skipped: 58, xfailed: 2, date: 2026-10-14}
+test_suite: {passed: 202, skipped: 0, date: 2026-10-14, env: crimm-dev, tool variables: set}   # 136 + 15 (M0, committed) + 26 in tests/test_gui_service.py and tests/test_gui_app.py (uncommitted)
+test_suite_without_tool_variables: {passed: 144, skipped: 58, date: 2026-10-14}
 env: crimm-dev                     # no separate env file
 crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul
 directory: /home/ziqiaoxu/msld-prep   # /home/ziqiaoxu/msld-prep-tools is a symlink to it (G11)
@@ -308,6 +311,59 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-14 claude-sonnet/claude-code/protonation-tolerant-matching
+
+- asked: relax the substructure match on protonation states, or log, match, align and restore
+  the protons; resolve it first.
+- did: read `sil.mol2` (63 atoms, 33 heavy) and `panel_a.smi` (3 analogs) locally and added
+  `panel_a.smi` to `.git/info/exclude` (it was not excluded). Compared MCS settings on them.
+  Rewrote `align.align_to_reference`: matches the `FindMCS` query back onto both molecules and
+  embeds with those pairs (`_embed_onto_reference`), so charges, hydrogen counts and isotopes
+  no longer matter (fixes #9); added `McsOptions.ignore_bond_orders` (`BondCompare.CompareAny`),
+  on by default in the GUI with a checkbox. Removed the charged-reference error hint and the
+  `xfail` markers. Nothing committed. `[ran]`
+- verified `[ran]`: 202 passed (tool variables set), 144 passed and 58 skipped (unset); the new
+  code reproduces the old atom maps and coordinates (within 0.03 angstrom) for 32 of 33 demo
+  analogs; with RDKit tautomer pairs from public chemistry (quinazolinone and its hydroxy form,
+  2-pyridone, an aminopyrimidine and its imino form) strict matching drops the one atom whose bond
+  order changes and ignoring bond orders recovers it, also with ring-matches-ring on; the page's
+  checkbox changes the core size in Firefox.
+- **not reproduced:** on `sil.mol2` with the three `panel_a.smi` analogs the current code already
+  matched 31 of 31, 32 of 32 and 33 of 34 heavy atoms with core RMSD 0.06 in every
+  setting, ring-matches-ring included; the reference carries the same `[nH]` as the analogs, and RDKit's
+  tautomers of one analog cost at most one atom. The whole-ring loss the owner describes was not seen.
+  An analog that shows it is needed.
+- **SUPERSEDED 2026-10-14 (same session) by the owner's screenshot and `silp.mol2`: reproduced and
+  explained.** The reference used in the GUI was `silp.mol2`, not `sil.mol2`: 64 atoms, three
+  charged nitrogens (net +3), and RDKit perceives its fused pyrazole and pyrimidinone rings as
+  **not aromatic** (alternating single and double bonds), while the analogs' rings are aromatic.
+  Under the old strict bond comparison 10 ring bonds of the fused system mismatch (aromatic against
+  single or double), and `completeRingsOnly` then drops both rings: core 20 of 32 heavy atoms, which is the
+  screenshot (bicycle not highlighted). `ringMatchesRingOnly` does not help (it is about ring
+  membership, not bond type). With `ignore_bond_orders` the core is 31, 32 and 33 atoms for the three
+  analogs, with or without removing charges. Removing charges left +1 (the file's N-methyl
+  pyrazole nitrogen is an iminium-like N+ in that Kekule form, which `Uncharger` cannot neutralize)
+  and does not change the matching. `[ran]`
+- found: P-1 (symmetric match chosen arbitrarily; one demo analog got a different atom map and a 4
+  angstrom different pose with the same core RMSD).
+- next: owner supplies an analog where the ring is lost, and the page's result for it; then
+  commit as: library change `Closes #9`, GUI option `Part of #6`, docs.
+
+### 2026-10-14 claude-sonnet/claude-code/gui-reference-2d
+
+- asked: which viewer the GUI uses and whether it can rotate bonds (for a manual tuning tool);
+  a collapsible 2D drawing of the reference in panel 1.
+- did: answered (3Dmol.js 2.4.2; no bond-rotation tool in it); added the 2D panel (collapsed
+  by default, remembered in `localStorage`, shows the matched core of the selected analog) and
+  one test; recorded the tuning tool as F-12 in `docs/dev/ISSUES_AND_PLANS.md`. Not committed;
+  no issue filed for F-12. `[ran]`
+- verified `[ran]`: 39 GUI tests pass; in Firefox with WebGL the panel is hidden before a
+  reference, appears collapsed after loading, opens on click, remembers its state across a
+  reload, and marks the matched core after aligning; no JavaScript error.
+- not verified: the full suite after this change (only the GUI tests were run).
+- next: owner decides on F-12 (an issue, and what \"minor misalignment\" looks like on real
+  data); commit this with `Part of #6`.
 
 ### 2026-10-14 claude-sonnet/claude-code/gui-docs-issues-cleanup
 
