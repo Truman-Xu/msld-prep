@@ -118,7 +118,7 @@ Unordered. Nothing here is scheduled.
 
 | ID | Feature | Why | Depends on | Issue | Notes |
 | --- | --- | --- | --- | --- | --- |
-| F-1 | Alignment GUI, first slice | demo to the lab; check alignments by eye | none | #3 to #8 | Built 2026-10-14, see "Done"; the 3D view was checked in Firefox with software WebGL on 2026-10-14. Issues #4 to #8 describe a wider plan than what was built |
+| F-1 | Alignment GUI, first slice | demo to the lab; check alignments by eye | none | #3 to #8 | Built 2026-10-14, see "Done"; the 3D view was checked in Firefox with software WebGL on 2026-10-14. Issues #4 and #8 were rewritten on 2026-10-14 to match what was built; #5 to #7 still describe the first plan and are partly superseded |
 | F-2 | Show the protein pocket in the GUI for clash checks | the workshop notebook asks for it | F-1 | none | load a PDB for display only |
 | F-3 | Export Sybyl-typed mol2 per analog from the GUI | what the notebook hands to CGenFF | F-1 | #7 | **Done 2026-10-14**, see "Done" |
 | F-4 | Several users or sessions on one GUI server | today one session per server (G16) | F-1 | none | needs session ids in the API |
@@ -127,7 +127,23 @@ Unordered. Nothing here is scheduled.
 | F-7 | Fewer saved files: keep intermediate stages in memory | owner's goal (handoff section 2, 2026-10-12) | learning plan (Q13): which files CHARMM and ALF really read | none | |
 | F-8 | A web GUI for the whole preparation, not only alignment | owner's goal | F-6, F-7 | none | |
 | F-9 | Compare the old and new pipelines on real MSLD runs | decide the design with evidence | learning plan, CHARMM basics from colleagues | none | |
+| F-11 | Option to keep the original atom names in the mol2 export | the owner's choice to rename is deliberate (CGenFF), but some uses need the original names | F-3 | #10 | default stays "new unique names"; refuse kept names that are duplicated or longer than four characters |
 | F-10 | Learning plan for the original `msld-py-prep` | prerequisite of the roadmap | none | none | postponed until after the GUI demo; seed in handoff Q13 |
+
+## Deliberate behaviors
+
+Things that look like gaps but are choices. Do not "fix" them; change them only by an item above.
+
+- **mol2 export renames every atom and writes no charges** (owner, 2026-10-14). The GUI's mol2
+  files are written for CGenFF. CGenFF keeps only unique names of at most four characters
+  (it silently renumbers others) and computes its own charges, so the writer
+  (`sybyl_typer.assign_unique_atom_names`, `format_mol2_text`) gives every atom a fresh unique
+  name, the reference included, and writes `NO_CHARGES`. The reference's names from its own file
+  are therefore not kept. An option to keep them is F-11 (#10). The sdf export keeps the
+  structure as it is and adds each analog's RMSD and seed.
+- **A realigned analog loses its accept or reject mark**, because the pose is new.
+- **The reference is used with hydrogens**: added with coordinates if the file has none, and
+  re-added after removing its charges.
 
 ## Open design questions
 
