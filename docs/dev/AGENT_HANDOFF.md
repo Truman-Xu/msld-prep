@@ -127,6 +127,8 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-08 | The working env is `crimm-dev` if it satisfies every dependency of this project. It does (see section 3). | `[told]` |
 | 2026-10-12 | Project goal: a streamlined pipeline with only the inputs and outputs MSLD needs, in-memory objects for intermediate stages (fewer saved files), and a robust, user-friendly web GUI with visualization tailored to this process. | `[told]` |
 | 2026-10-12 | Working item 1: a web GUI for **only the alignment step** that `align.ipynb` runs. Runs on the cluster, reached by SSH tunnel. Stack: FastAPI backend plus small JS front end with 3Dmol.js; the later full app reuses the API. Input: reference with 3D coordinates as **mol2 or sdf** (no CRD, so no crimm hotfix) plus analog SMILES. Output: aligned sdf and one Sybyl-typed mol2 per analog. No CGenFF call in the GUI. Plan: `/home/ziqiaoxu/.claude/plans/thank-you-for-the-valiant-sonnet.md` (milestones M0 to M5); not started. | `[told]` |
+| 2026-10-14 | The mol2 export's renaming of every atom and its missing charges are **deliberate**, because CGenFF only accepts unique short names and computes its own charges. Document it (done: README, `ISSUES_AND_PLANS.md` \"Deliberate behaviors\"), and plan an option to keep the original names (#10, F-11). Rewrite #4 and #8 to match the work (done). Push the commits (done). | `[told]` |
+| 2026-10-14 | **Every commit that finishes an issue ends its message with `Closes #N`**, on its own line above the `Co-Authored-By` trailer; a commit that only works toward an issue says `Part of #N`. Written into `CONTRIBUTING.md`. Apply it from the next commit on. | `[told]` |
 | 2026-10-14 | Next GUI requests: save the aligned structures as mol2 (the notebook's Sybyl typing and mol2 writer), and an option "one structure per file" for individual sdf or mol2 files; file a GitHub issue for the unfixed charged-reference bug (done: #9); make a separate commit for each issue worked on. The owner reports that all visualization features work. Pushed the four earlier commits at the owner's request; the commits made after that request are local. | `[told]` |
 | 2026-10-14 | Three requests for the GUI and the docs: (1) a GUI option to remove charges from the reference with `Uncharger`, as the notebook does; (2) a toggle to color the reference by element, gray when off; (3) a dev document of active issues and planned features, **not a roadmap** (the roadmap waits until the owner understands the original pipeline), whose first issue is matching the common structure regardless of atom charge (a charged nitrogen gives "molecule doesn't match the core"). Done as `docs/dev/ISSUES_AND_PLANS.md`; `ROADMAP.md` is still not created. | `[told]` |
 | 2026-10-14 | **Item 1 scope narrowed, and a demo is due soon.** The alignment GUI needs only the constrained embed of each analog onto the reference: no atom typing (no Sybyl or CGenFF) and no common core across the series. So no per-analog mol2 export; the download is an sdf (reference first, then analogs). The learning plan (item 2, Q13) is postponed by the owner until after the demo. | `[told]` |
@@ -190,7 +192,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G5 | CGenFF atom types are carried on RDKit atoms as the `CGENFFAtomType` property and grouped via isotope labels starting at 300 (`align.py`). Do not use isotopes for anything else in this package. | `[read]` |
 | G6 | `msldprep/sybyl_typing_data.py` is generated from `data/atomtyp.txt` and `data/types.txt`. Edit the generator or inputs, then rerun it. | `[read]` |
 | G7 | Docstrings and configs still say `rewrite/msld_prep_cli.py` and `rewrite/scripts/...`, from when this code lived in a `rewrite/` directory. Four matches in `.py` and `.yaml` files. The real paths have no `rewrite/`. | `[ran grep 2026-10-08]` |
-| G8 | Untracked does not mean disposable. `build.*/` and `work.*/` are git-ignored but still hold the owner's runs; do not delete them. `TODO.md` is untracked; its two items are issues #1 and #2 now, and the file was left in place for the owner to delete or keep. | `[inferred]` |
+| G8 | Untracked does not mean disposable. `build.*/` and `work.*/` are git-ignored but still hold the owner's runs; do not delete them. `TODO.md` was untracked; its two items are issues #1 and #2, and the owner deleted the file on 2026-10-14. | `[inferred]` |
 | G9 | Other sessions may edit `docs/dev/*.md` concurrently. Re-read a file immediately before editing it, and make targeted edits, never whole-file rewrites. | `[inferred: same hazard recorded in crimm's handoff]` |
 | G10 | `test_downstream_msld_prm_contract` puts `/home/ziqiaoxu/msld-py-prep` on `sys.path` and emits pandas `ChainedAssignmentError` warnings from that legacy file. The warnings are in legacy code, not in this repo. | `[ran 2026-10-08]` |
 | G11 | `/home/ziqiaoxu/msld-prep-tools` is a symlink to `/home/ziqiaoxu/msld-prep` (published to cluster users; see standing instructions). Use the new path in docs and new scripts; do not break the link. | `[told 2026-10-08]`, `[ran]` |
@@ -206,17 +208,19 @@ Rewrite in place. True as of `2026-10-12`.
 git:
   branch: main
   remote: origin https://github.com/Truman-Xu/msld-prep.git   # public, tracking origin/main
-  commits: fifteen (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
+  commits: eighteen (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
            examples, environment variables for tool paths, the unpublished-structures handoff
            entry, then the push-day docs commit; on 2026-10-12 the handoff commit (crimm hotfix
            path, GUI plan, learning-plan intent), `align_to_reference` (#3) and the text loaders (#3),
            then this docs update; on 2026-10-14 four GUI commits (service #4, page #6, API #5, the
-           charged-reference documentation #9), then the mol2 export (#7) and this handoff update
-  pushed: through `f8cb854`        # 2026-10-08, 2026-10-12 and 2026-10-14, each at the owner's request (section 2); the last two commits are local
+           charged-reference documentation #9), then the mol2 export (#7), the handoff update, and the 2026-10-14 documentation commits (Closes rule, deliberate behaviors and F-11, handoff)
+  pushed: through the mol2-export and handoff commits of 2026-10-14, each push at the owner's request (section 2)
   branch_protection: none          # not set
 github:
   issues: ["#1 reference and analog protonation states can mismatch", "#2 respect chirality of molecules through the pipeline",
            "#3 to #8 alignment GUI milestones M0 to M5 (created 2026-10-12; M0 library support, M1 session service, M2 FastAPI API, M3 front end, M4 review and export, M5 docs)",
+           "#10 GUI option to keep the original atom names in the mol2 export (created 2026-10-14)",
+           "#4 and #8 were rewritten 2026-10-14 to match what was built; #5 to #7 still describe the first plan",
            "#9 alignment fails with \"molecule doesn't match the core\" when the reference has a charged atom (created 2026-10-14; strict xfail tests)"]
   labels_created: [correctness, gui]    # on top of GitHub's defaults
   milestones: none                 # wait for ROADMAP.md
@@ -234,8 +238,7 @@ excluded_locally_unpublished_series:   # .git/info/exclude; never commit (G12)
   - sil.rtf
   - cellz.yaml
   - cellz_build.yaml
-untracked_awaiting_owner_decision:
-  - TODO.md                        # converted to issues #1 and #2; owner deletes or keeps it
+untracked_awaiting_owner_decision: none   # TODO.md was deleted by the owner, 2026-10-14
 ignored_by_gitignore:
   - build.*/
   - work.*/
@@ -305,6 +308,22 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-14 claude-sonnet/claude-code/gui-docs-issues-cleanup
+
+- asked: document the deliberate mol2 renaming and missing charges and plan an option for the
+  names; push the commits; rewrite #4 and #8; adopt `Closes #N`.
+- did: filed #10 (keep original atom names in the export, default unchanged); rewrote #4 (the
+  session service as built, its done-when met by `c7f7b0a` and `26817ab`, left open for the owner
+  to close) and #8 (README walk-through, export notes, troubleshooting, a person other than the
+  author follows it once); added the section \"Deliberate behaviors\" and F-11 to
+  `docs/dev/ISSUES_AND_PLANS.md`, a README sentence on the renaming, and the `Closes #N` rule to
+  `CONTRIBUTING.md`; pushed the two commits that were local. `[ran]`
+- not verified: #5, #6 and #7 still carry the first plan's text and were not rewritten (the
+  owner named #4 and #8 only); what CGenFF does with names that are unique but longer than four
+  characters (asked in #10).
+- next: `Closes #N` on the commit that finishes an issue; decide whether to close #4 and #3; look
+  at #5 to #7; the learning plan (Q13) when ready.
 
 ### 2026-10-14 claude-sonnet/claude-code/gui-mol2-export
 
