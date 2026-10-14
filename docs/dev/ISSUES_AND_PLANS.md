@@ -60,7 +60,7 @@ Template for a feature:
 | ID | Title | Kind | Status | Test |
 | --- | --- | --- | --- | --- |
 | #9 | Alignment fails with "molecule doesn't match the core" when the **reference** has a charged atom | bug | **fixed 2026-10-14**, closes with the commit that says `Closes #9` | `tests/test_align.py::test_align_to_reference_matches_atoms_whatever_their_charge` (the `xfail` marker is removed) |
-| P-1 | Which symmetric match is embedded is arbitrary, so a ring can come out flipped | bug (suspected) | open, seen once, not judged | none yet |
+| #11 | Which symmetric match is embedded is arbitrary, so a ring can come out flipped | bug (suspected) | open, seen once, not judged | none yet: needs the rule for "better" decided first |
 | #1 | Reference and analog protonation states can mismatch | correctness | open, not reproduced | none yet |
 | #2 | Respect chirality of molecules through the pipeline | correctness | open, not reproduced | none yet |
 
@@ -121,9 +121,9 @@ Template for a feature:
 - **Not checked:** the effect on the rest of the pipeline (typing, the shared core search,
   charge renormalization) when charged atoms are present at all.
 
-### P-1 The symmetric match that is embedded is arbitrary
+### #11 The symmetric match that is embedded is arbitrary
 
-- **Status:** open, provisional ID (no GitHub issue yet).
+- **Status:** open. GitHub issue #11, created 2026-10-14.
 - **Found:** 2026-10-14 while checking the fix for #9.
 - **What happens:** when the common structure matches a molecule in more than one way (a
   symmetric ring, or two equivalent substituents), `GetSubstructMatch` returns the first match
@@ -155,6 +155,7 @@ Unordered. Nothing here is scheduled.
 | F-9 | Compare the old and new pipelines on real MSLD runs | decide the design with evidence | learning plan, CHARMM basics from colleagues | none | |
 | F-11 | Option to keep the original atom names in the mol2 export | the owner's choice to rename is deliberate (CGenFF), but some uses need the original names | F-3 | #10 | default stays "new unique names"; refuse kept names that are duplicated or longer than four characters |
 | F-12 | Manual tuning of an aligned analog in the GUI: rotate a bond to fix a small misalignment | the constrained embed can leave a free part in a slightly wrong pose | F-1 | none yet | 3Dmol.js has no bond-rotation tool (checked 2026-10-14: no torsion or dihedral code in the bundled 2.4.2), only atom picking (`setClickable`, `setHoverable`) and `setCoordinates`. Likely design: pick a bond in the page, send it with an angle to the server, rotate the atoms on the side that holds no matched-core atom with RDKit (`rdMolTransforms`), return the new coordinates, show clashes. The core must stay fixed. Not decided |
+| F-13 | **Reminder, next session: remove the GUI option "Remove charges from the reference"** | it was a workaround for #9; since the fix charges do not matter for matching or alignment (owner, 2026-10-14), and `Uncharger` leaves a charge behind in some cases | none | #12 | the net charge of the reference stays visible in the page; what a charged reference means for MSLD is #1 |
 | F-10 | Learning plan for the original `msld-py-prep` | prerequisite of the roadmap | none | none | postponed until after the GUI demo; seed in handoff Q13 |
 
 ## Deliberate behaviors

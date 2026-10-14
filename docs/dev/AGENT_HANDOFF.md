@@ -127,6 +127,7 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-08 | The working env is `crimm-dev` if it satisfies every dependency of this project. It does (see section 3). | `[told]` |
 | 2026-10-12 | Project goal: a streamlined pipeline with only the inputs and outputs MSLD needs, in-memory objects for intermediate stages (fewer saved files), and a robust, user-friendly web GUI with visualization tailored to this process. | `[told]` |
 | 2026-10-12 | Working item 1: a web GUI for **only the alignment step** that `align.ipynb` runs. Runs on the cluster, reached by SSH tunnel. Stack: FastAPI backend plus small JS front end with 3Dmol.js; the later full app reuses the API. Input: reference with 3D coordinates as **mol2 or sdf** (no CRD, so no crimm hotfix) plus analog SMILES. Output: aligned sdf and one Sybyl-typed mol2 per analog. No CGenFF call in the GUI. Plan: `/home/ziqiaoxu/.claude/plans/thank-you-for-the-valiant-sonnet.md` (milestones M0 to M5); not started. | `[told]` |
+| 2026-10-14 | **Reminder for the next session: remove the GUI option "Remove charges from the reference"** (RDKit `Uncharger`). It was a workaround for #9; since that fix charges do not matter for the match or the alignment, so it serves no purpose. Tracked as #12 (F-13). Say so at the start of the next session; the owner's own words were "set up a reminder for me". Also saved in agent memory. | `[told]` |
 | 2026-10-14 | The owner reports that different protonation states of the same ring (`c(=O)[nH]c` against `c(=O)nc`) make RDKit's substructure match treat structures as different, hurting alignment quality, and wants it resolved first: relax the match on protonation states, or log the states, match, align and put the protons back. Local files for this: `sil.mol2` (reference) and `panel_a.smi` (analogs); both belong to the unpublished series (G12). | `[told]` |
 | 2026-10-14 | The mol2 export's renaming of every atom and its missing charges are **deliberate**, because CGenFF only accepts unique short names and computes its own charges. Document it (done: README, `ISSUES_AND_PLANS.md` \"Deliberate behaviors\"), and plan an option to keep the original names (#10, F-11). Rewrite #4 and #8 to match the work (done). Push the commits (done). | `[told]` |
 | 2026-10-14 | **Every commit that finishes an issue ends its message with `Closes #N`**, on its own line above the `Co-Authored-By` trailer; a commit that only works toward an issue says `Part of #N`. Written into `CONTRIBUTING.md`. Apply it from the next commit on. | `[told]` |
@@ -222,6 +223,7 @@ github:
            "#3 to #8 alignment GUI milestones M0 to M5 (created 2026-10-12; M0 library support, M1 session service, M2 FastAPI API, M3 front end, M4 review and export, M5 docs)",
            "#10 GUI option to keep the original atom names in the mol2 export (created 2026-10-14)",
            "#4 and #8 were rewritten 2026-10-14 to match what was built; #5 to #7 still describe the first plan",
+           "#11 alignment embeds an arbitrary one of several equivalent symmetric matches (created 2026-10-14; was P-1 in the log entries of that day)",
            "#9 alignment fails with \"molecule doesn't match the core\" when the reference has a charged atom (created 2026-10-14; strict xfail tests)"]
   labels_created: [correctness, gui]    # on top of GitHub's defaults
   milestones: none                 # wait for ROADMAP.md
@@ -311,6 +313,20 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-14 claude-sonnet/claude-code/day-end-wrapup
+
+- asked: file an issue for the symmetric matches; wrap up; then commit and push the two docs,
+  update the logs, and set up a reminder to remove the "Remove charges from the reference" option.
+- did: filed #11 (symmetric match chosen arbitrarily; was P-1 in the log entries of this day) and
+  #12 (remove the Uncharger option, the reminder); replaced P-1 by #11 in `ISSUES_AND_PLANS.md`
+  and State; added F-13 and the reminder as a standing instruction; saved a memory note so the
+  next session raises it first. Wrap-up check: nothing unpushed, no stale branches, no claims. `[ran]`
+- out of date, not fixed here: #5, #6 and #7 still describe the first GUI plan (partly built,
+  partly superseded); #1 should be read again in the light of the protonated reference (its fused
+  rings are non-aromatic and `Uncharger` leaves +1).
+- next: (1) raise the reminder: remove the option (#12); (2) settle #5 to #7; (3) decide the rule
+  for #11. The learning plan (Q13) is still postponed.
 
 ### 2026-10-14 claude-sonnet/claude-code/protonation-tolerant-matching
 
