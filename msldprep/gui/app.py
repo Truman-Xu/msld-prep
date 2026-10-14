@@ -43,6 +43,7 @@ class AnalogsIn(BaseModel):
 class ParamsIn(BaseModel):
     complete_rings_only: bool | None = None
     ring_matches_ring_only: bool | None = None
+    ignore_bond_orders: bool | None = None
     timeout: int | None = Field(default=None, ge=0, le=3600)
     seed: int | None = Field(default=None, ge=0, le=2**31 - 1)
 

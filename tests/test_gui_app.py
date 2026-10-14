@@ -102,3 +102,9 @@ def test_neutralizing_the_reference_through_the_api(client):
     assert state["neutralize_reference"] is True and state["reference"]["net_charge"] == 0
     assert "N" in client.get("/api/reference").json()["elements"]
     assert client.put("/api/reference/neutralize", json={}).status_code == 422
+
+
+def test_the_matching_settings_round_trip_through_the_api(client):
+    assert client.get("/api/state").json()["params"]["ignore_bond_orders"] is True
+    state = client.put("/api/params", json={"ignore_bond_orders": False, "ring_matches_ring_only": True}).json()
+    assert state["params"]["ignore_bond_orders"] is False and state["params"]["ring_matches_ring_only"] is True

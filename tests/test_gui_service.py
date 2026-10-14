@@ -351,3 +351,22 @@ def test_a_charged_reference_aligns_without_removing_its_charges():
     session.align_all()
     assert set(_status(session).values()) == {"aligned"}
     assert session.summary()["reference"]["net_charge"] == 1
+
+
+def test_the_gui_ignores_bond_orders_by_default_and_the_setting_can_be_changed(session):
+    assert session.summary()["params"]["ignore_bond_orders"] is True
+    session.set_params(ignore_bond_orders=False)
+    assert session.summary()["params"]["ignore_bond_orders"] is False
+
+
+def test_tautomers_of_the_reference_align_in_full_with_the_default_settings():
+    reference = Chem.AddHs(Chem.MolFromSmiles("O=c1[nH]cnc2ccccc12"))
+    Chem.rdDistGeom.EmbedMolecule(reference, randomSeed=3)
+    session = AlignmentSession()
+    session.set_reference("quinazolinone", Chem.MolToMolBlock(reference))
+    session.set_analogs("Oc1ncnc2ccccc12 hydroxy_tautomer")
+    session.align_all()
+    assert session.summary()["analogs"][0]["core_atoms"] == 11  # all heavy atoms, the C-O bond order differs
+    session.set_params(ignore_bond_orders=False)
+    session.align_all()
+    assert session.summary()["analogs"][0]["core_atoms"] == 10

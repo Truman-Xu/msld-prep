@@ -118,6 +118,7 @@ function syncParams() {
   const p = state.params;
   $("p-complete").checked = p.complete_rings_only;
   $("p-ringring").checked = p.ring_matches_ring_only;
+  $("p-anybond").checked = p.ignore_bond_orders;
   $("p-timeout").value = p.timeout;
   $("p-seed").value = p.seed;
   $("neutralize").checked = state.neutralize_reference;
@@ -226,7 +227,19 @@ function renderElementLegend() {
   }
 }
 
+// The reference's 2D drawing in panel 1; with an aligned analog selected, the atoms it
+// matched are marked.
+function renderReference2D() {
+  const box = $("ref2d");
+  box.hidden = !refView;
+  if (!refView) return;
+  const matched = view && view.status === "aligned";
+  $("ref2d-svg").innerHTML = matched ? view.reference_svg : refView.svg; // drawn by RDKit on the server
+  $("ref2d-hint").textContent = matched ? `Matched core of ${view.name} in blue.` : "";
+}
+
 function draw() {
+  renderReference2D();
   renderElementLegend();
   if (!refView) return;
   const v = ensureViewer();
@@ -307,6 +320,7 @@ async function align() {
     body: {
       complete_rings_only: $("p-complete").checked,
       ring_matches_ring_only: $("p-ringring").checked,
+      ignore_bond_orders: $("p-anybond").checked,
       timeout: Number($("p-timeout").value) || 0,
       seed: Number($("p-seed").value) || 0,
     },
@@ -377,6 +391,8 @@ $("realign").addEventListener("click", () => guarded(realign));
 $("d-format").addEventListener("change", () => state && updateDownload());
 $("download").addEventListener("click", () => guarded(download));
 $("t-hydrogens").addEventListener("change", draw);
+$("ref2d").open = readSetting("ref2dOpen") === "1";
+$("ref2d").addEventListener("toggle", (e) => saveSetting("ref2dOpen", e.target.open ? "1" : "0"));
 $("t-color").addEventListener("change", (e) => {
   colorReference = e.target.checked;
   saveSetting("colorReference", colorReference ? "1" : "0");

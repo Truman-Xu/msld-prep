@@ -144,7 +144,9 @@ progress { width: 100%; margin-top: 8px; }
 .detail dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 8px 0 0; }
 .detail dt { color: var(--muted); }
 .detail dd { margin: 0; overflow-wrap: anywhere; }
-.detail .svg { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 4px; margin-top: 8px; }
+details#ref2d { margin-top: 8px; }
+.svgbox, .detail .svg { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 4px; margin-top: 8px; }
+.svgbox svg { width: 100%; height: auto; display: block; }
 .detail .svg svg { width: 100%; height: auto; display: block; }
 .detail .error { color: var(--bad); }
 

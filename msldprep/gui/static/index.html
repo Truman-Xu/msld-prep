@@ -21,6 +21,11 @@
       <label class="file"><input type="file" id="reference-file" accept=".mol2,.sdf,.mol"><span>Choose file</span></label>
       <label class="check" title="RDKit's Uncharger, as in the notebook. Needed when the reference is charged and the analogs are written neutral."><input type="checkbox" id="neutralize"> Remove charges from the reference</label>
       <div id="reference-info" class="info"></div>
+      <details id="ref2d" hidden>
+        <summary>2D structure</summary>
+        <div id="ref2d-svg" class="svgbox"></div>
+        <p class="hint" id="ref2d-hint"></p>
+      </details>
     </section>
 
     <section>
@@ -39,6 +44,7 @@
         <summary>Settings</summary>
         <label class="check"><input type="checkbox" id="p-complete" checked> Match whole rings only</label>
         <label class="check"><input type="checkbox" id="p-ringring"> Ring atoms match ring atoms only</label>
+        <label class="check" title="Match atoms by element and connectivity only, so tautomers and protonation variants (which differ in bond orders) still match"><input type="checkbox" id="p-anybond" checked> Ignore bond orders (tautomers, protonation)</label>
         <div class="row">
           <label>Core search time limit (s) <input type="number" id="p-timeout" min="0" max="3600" value="0" title="0 = RDKit's default"></label>
           <label>Seed <input type="number" id="p-seed" min="0" value="2342"></label>

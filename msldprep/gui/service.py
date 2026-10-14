@@ -168,7 +168,9 @@ class AnalogEntry:
 
 @dataclass
 class AlignParams:
-    mcs: McsOptions = field(default_factory=McsOptions)
+    # The GUI matches across tautomers and protonation states by default: bond orders
+    # differ between them, and a strict match then drops the atoms around the change.
+    mcs: McsOptions = field(default_factory=lambda: McsOptions(ignore_bond_orders=True))
     seed: int = DEFAULT_EMBED_SEED
 
 
@@ -290,6 +292,7 @@ class AlignmentSession:
         *,
         complete_rings_only: bool | None = None,
         ring_matches_ring_only: bool | None = None,
+        ignore_bond_orders: bool | None = None,
         timeout: int | None = None,
         seed: int | None = None,
     ) -> None:
@@ -302,6 +305,8 @@ class AlignmentSession:
                 mcs = replace(mcs, complete_rings_only=complete_rings_only)
             if ring_matches_ring_only is not None:
                 mcs = replace(mcs, ring_matches_ring_only=ring_matches_ring_only)
+            if ignore_bond_orders is not None:
+                mcs = replace(mcs, ignore_bond_orders=ignore_bond_orders)
             if timeout is not None:
                 if timeout < 0:
                     raise SessionError("The MCS timeout cannot be negative.")
@@ -411,6 +416,7 @@ class AlignmentSession:
                 "params": {
                     "complete_rings_only": mcs.complete_rings_only,
                     "ring_matches_ring_only": mcs.ring_matches_ring_only,
+                    "ignore_bond_orders": mcs.ignore_bond_orders,
                     "timeout": mcs.timeout or 0,
                     "seed": self.params.seed,
                 },
@@ -464,6 +470,7 @@ class AlignmentSession:
                 rmsd=alignment.rmsd,
                 seed=alignment.seed,
                 svg=_depiction_svg(entry.mol, set(alignment.atom_map)),
+                reference_svg=_depiction_svg(self.reference, set(alignment.atom_map.values())),
             )
             return view
 
