@@ -88,10 +88,17 @@
     <section>
       <h2>Download</h2>
       <div class="row">
-        <select id="d-which"><option value="accepted">Accepted only</option><option value="aligned">All aligned, not rejected</option></select>
-        <a id="download" class="button" href="#">Download sdf</a>
+        <label>Structures
+          <select id="d-which"><option value="accepted">Accepted only</option><option value="aligned">All aligned, not rejected</option></select>
+        </label>
+        <label>Format
+          <select id="d-format"><option value="sdf">sdf</option><option value="mol2">mol2</option></select>
+        </label>
       </div>
-      <p class="hint">The reference comes first, then the analogs. Nothing is stored on the server.</p>
+      <label class="check"><input type="checkbox" id="d-reference" checked> Include the reference</label>
+      <label class="check" title="A zip with one file per structure, named after it"><input type="checkbox" id="d-perfile"> One structure per file (zip)</label>
+      <button id="download" class="primary">Download</button>
+      <p class="hint" id="d-hint"></p>
     </section>
   </aside>
 </main>

@@ -1,4 +1,6 @@
+import io
 import os
+import zipfile
 
 import pytest
 from rdkit import Chem
@@ -134,29 +136,97 @@ def test_decisions_apply_only_to_aligned_analogs(aligned):
     assert [e["name"] for e in aligned.overlay()] == ["10749", "10870"]
 
 
+def _sdf_records(text):
+    supplier = Chem.SDMolSupplier()
+    supplier.SetData(text, removeHs=False)
+    return {m.GetProp("_Name"): m for m in supplier}
+
+
+def _mol2_records(text):
+    blocks = ["@<TRIPOS>MOLECULE" + part for part in text.split("@<TRIPOS>MOLECULE")[1:]]
+    mols = [Chem.MolFromMol2Block(b, removeHs=False) for b in blocks]
+    assert all(m is not None for m in mols)
+    return {b.splitlines()[1]: m for b, m in zip(blocks, mols)}
+
+
 def test_export_sdf_lists_reference_then_the_chosen_analogs(aligned):
     aligned.set_decision("10749", "accepted")
     aligned.set_decision("10322", "rejected")
 
     def names(which):
-        supplier = Chem.SDMolSupplier()
-        supplier.SetData(aligned.export_sdf(which), removeHs=False)
-        return [(m.GetProp("_Name"), m.GetProp("Role")) for m in supplier]
+        records = _sdf_records(aligned.export("sdf", which).data.decode())
+        return [(name, m.GetProp("Role")) for name, m in records.items()]
 
     assert names("accepted") == [(REFERENCE_STEM, "reference"), ("10749", "analog")]
     assert [n for n, _ in names("aligned")] == [REFERENCE_STEM, "10749", "10870"]
-    with pytest.raises(SessionError):
-        aligned.export_sdf("everything")
+    with pytest.raises(SessionError, match="must be"):
+        aligned.export("sdf", "everything")
+    with pytest.raises(SessionError, match="format"):
+        aligned.export("pdb")
 
 
 def test_exported_analogs_keep_their_aligned_coordinates(aligned):
-    supplier = Chem.SDMolSupplier()
-    supplier.SetData(aligned.export_sdf("aligned"), removeHs=False)
-    exported = {m.GetProp("_Name"): m for m in supplier}
+    exported = _sdf_records(aligned.export("sdf", "aligned").data.decode())
     view = aligned.ligand_view("10870")
     expected = Chem.MolFromMolBlock(view["molblock"], removeHs=False).GetConformer().GetPositions()
     assert (exported["10870"].GetConformer().GetPositions() - expected).max() < 1e-3
     assert float(exported["10870"].GetProp("AlignRMSD")) == pytest.approx(view["rmsd"], abs=1e-4)
+
+
+def test_export_mol2_writes_sybyl_typed_structures_in_the_aligned_pose(aligned):
+    export = aligned.export("mol2", "aligned")
+    assert export.filename == "aligned_aligned.mol2" and export.media_type == "chemical/x-mol2"
+    text = export.data.decode()
+    assert text.count("@<TRIPOS>MOLECULE") == 4  # reference and three analogs
+    records = _mol2_records(text)
+    assert list(records) == [REFERENCE_STEM, "10749", "10322", "10870"]
+    # the notebook's writer: Sybyl atom types and unique atom names, no charges
+    assert "NO_CHARGES" in text and "C.ar" in text
+    names = [a.GetProp("_TriposAtomName") for a in records["10749"].GetAtoms()]
+    assert len(set(names)) == len(names)
+    view = aligned.ligand_view("10749")
+    expected = Chem.MolFromMolBlock(view["molblock"], removeHs=False).GetConformer().GetPositions()
+    assert (records["10749"].GetConformer().GetPositions() - expected).max() < 1e-3
+    # exporting does not change what the session holds
+    assert aligned.ligand_view("10749")["molblock"] == view["molblock"]
+
+
+def test_export_one_structure_per_file_makes_a_zip_named_after_the_structures(aligned):
+    for fmt, read in (("sdf", _sdf_records), ("mol2", _mol2_records)):
+        export = aligned.export(fmt, "aligned", one_per_file=True)
+        assert export.filename == f"aligned_aligned_{fmt}.zip" and export.media_type == "application/zip"
+        with zipfile.ZipFile(io.BytesIO(export.data)) as zf:
+            assert zf.namelist() == [f"{n}.{fmt}" for n in (REFERENCE_STEM, "10749", "10322", "10870")]
+            for member in zf.namelist():
+                records = read(zf.read(member).decode())
+                assert list(records) == [member.rsplit(".", 1)[0]]  # exactly one structure per file
+
+
+def test_export_can_leave_out_the_reference(aligned):
+    records = _sdf_records(aligned.export("sdf", "aligned", include_reference=False).data.decode())
+    assert list(records) == ["10749", "10322", "10870"]
+    with zipfile.ZipFile(io.BytesIO(aligned.export("mol2", "aligned", include_reference=False, one_per_file=True).data)) as zf:
+        assert REFERENCE_STEM + ".mol2" not in zf.namelist()
+
+
+def test_a_reference_named_like_an_analog_gets_its_own_file_in_the_zip():
+    session = AlignmentSession()
+    session.set_reference("10749", _reference_text())
+    session.set_analogs(ANALOG_TEXT)
+    session.align_all()
+    with zipfile.ZipFile(io.BytesIO(session.export("sdf", "aligned", one_per_file=True).data)) as zf:
+        assert zf.namelist() == ["10749_reference.sdf", "10749.sdf", "10322.sdf", "10870.sdf"]
+
+
+def test_export_refuses_when_there_is_nothing_to_write(aligned):
+    with pytest.raises(SessionError, match="no analog is marked accepted"):
+        aligned.export("sdf", "accepted")
+    for name in ANALOG_SMILES:
+        aligned.set_decision(name, "rejected")
+    with pytest.raises(SessionError, match="no analog is aligned"):
+        aligned.export("mol2", "aligned")
+    with pytest.raises(SessionError, match="No reference"):
+        AlignmentSession().export()
 
 
 def test_changing_the_reference_clears_alignments_but_keeps_unreadable_smiles_failed(aligned):

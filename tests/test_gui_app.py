@@ -1,4 +1,6 @@
+import io
 import time
+import zipfile
 
 import pytest
 
@@ -62,9 +64,15 @@ def test_whole_flow_through_the_api(client):
     decided = client.post("/api/analogs/10749/decision", json={"decision": "accepted"}).json()
     assert decided["analogs"][0]["decision"] == "accepted"
 
-    sdf = client.get("/api/export.sdf", params={"which": "accepted"})
+    sdf = client.get("/api/export", params={"which": "accepted"})
     assert sdf.status_code == 200 and sdf.text.count("$$$$") == 2
-    assert "attachment" in sdf.headers["content-disposition"]
+    assert 'filename="aligned_accepted.sdf"' in sdf.headers["content-disposition"]
+    mol2 = client.get("/api/export", params={"format": "mol2", "which": "accepted", "reference": "false"})
+    assert mol2.status_code == 200 and mol2.text.count("@<TRIPOS>MOLECULE") == 1
+    archive = client.get("/api/export", params={"format": "mol2", "which": "accepted", "per_file": "true"})
+    assert archive.headers["content-type"] == "application/zip"
+    with zipfile.ZipFile(io.BytesIO(archive.content)) as zf:
+        assert zf.namelist() == ["ref.mol2", "10749.mol2"]
     assert len(client.get("/api/overlay").json()) == 3
 
 
@@ -75,7 +83,8 @@ def test_errors_come_back_as_messages_not_crashes(client):
     assert client.get("/api/analogs/nope").status_code == 404
     assert client.put("/api/params", json={"timeout": -1}).status_code == 422
     assert client.put("/api/analogs", json={"text": "# nothing here"}).status_code == 422
-    assert client.get("/api/export.sdf").status_code == 422  # no reference
+    assert client.get("/api/export").status_code == 422  # no reference
+    assert client.get("/api/export", params={"format": "pdb"}).status_code == 422
 
 
 def test_start_over(client):

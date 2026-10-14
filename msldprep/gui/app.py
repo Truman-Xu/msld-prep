@@ -127,13 +127,15 @@ def create_app(token: str, session: AlignmentSession | None = None) -> FastAPI:
     def overlay() -> list[dict]:
         return session.overlay()
 
-    @app.get("/api/export.sdf", dependencies=auth)
-    def export_sdf(which: str = "aligned") -> Response:
-        text = session.export_sdf(which)
+    @app.get("/api/export", dependencies=auth)
+    def export(
+        format: str = "sdf", which: str = "aligned", reference: bool = True, per_file: bool = False
+    ) -> Response:
+        result = session.export(format, which, include_reference=reference, one_per_file=per_file)
         return Response(
-            text,
-            media_type="chemical/x-mdl-sdfile",
-            headers={"Content-Disposition": f'attachment; filename="aligned_{which}.sdf"'},
+            result.data,
+            media_type=result.media_type,
+            headers={"Content-Disposition": f'attachment; filename="{result.filename}"'},
         )
 
     @app.post("/api/reset", dependencies=auth)

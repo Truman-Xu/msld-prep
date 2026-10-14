@@ -44,7 +44,9 @@ configs are in `configs/`.
 
 A browser page for the alignment step only: load a reference with 3D coordinates (mol2 or sdf),
 paste analog SMILES, align each analog onto the reference with a constrained embedding, look at
-the results in 3D and 2D, accept or reject, and download an sdf. No CGenFF typing is involved.
+the results in 3D and 2D, accept or reject, and download the structures as sdf or mol2, in one
+file or one file per structure. The mol2 files are written the way the notebook does it (Sybyl
+types, no charges). No CGenFF typing is involved.
 
 ```bash
 pip install fastapi uvicorn             # the `[web]` extra, if the environment lacks them

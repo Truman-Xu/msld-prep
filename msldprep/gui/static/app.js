@@ -156,12 +156,38 @@ function renderDetail() {
 }
 
 function updateDownload() {
-  const which = $("d-which").value;
-  const link = $("download");
-  link.href = `/api/export.sdf?which=${which}&token=${encodeURIComponent(token)}`;
   const any = state && state.analogs.some((a) => a.status === "aligned");
-  link.style.pointerEvents = any ? "" : "none";
-  link.style.opacity = any ? "" : "0.45";
+  $("download").disabled = !any;
+  const mol2 = $("d-format").value === "mol2";
+  $("d-hint").textContent = (mol2
+    ? "mol2 as in the notebook: Sybyl atom types, new atom names, no charges. "
+    : "sdf keeps each analog's RMSD and seed. ")
+    + "Nothing is stored on the server.";
+}
+
+async function download() {
+  const query = new URLSearchParams({
+    format: $("d-format").value,
+    which: $("d-which").value,
+    reference: $("d-reference").checked,
+    per_file: $("d-perfile").checked,
+  });
+  const res = await fetch(`/api/export?${query}`, { headers: { "X-Token": token } });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail ?? detail; } catch (_) { /* not json */ }
+    throw new Error(typeof detail === "string" ? detail : detail.map((d) => d.msg).join("; "));
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") || "")?.[1] || "aligned";
+  const url = URL.createObjectURL(await res.blob());
+  const link = el("a");
+  link.href = url;
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  say(`Downloaded ${name}.`);
 }
 
 // ---------------------------------------------------------------- 3D view
@@ -348,7 +374,8 @@ $("align").addEventListener("click", () => guarded(align));
 $("accept").addEventListener("click", () => guarded(() => decide("accepted")));
 $("reject").addEventListener("click", () => guarded(() => decide("rejected")));
 $("realign").addEventListener("click", () => guarded(realign));
-$("d-which").addEventListener("change", () => state && updateDownload());
+$("d-format").addEventListener("change", () => state && updateDownload());
+$("download").addEventListener("click", () => guarded(download));
 $("t-hydrogens").addEventListener("change", draw);
 $("t-color").addEventListener("change", (e) => {
   colorReference = e.target.checked;

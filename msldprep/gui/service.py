@@ -14,6 +14,7 @@ import io
 import logging
 import re
 import threading
+import zipfile
 from dataclasses import dataclass, field, replace
 from typing import Callable
 
@@ -31,6 +32,7 @@ from ..align import (
     mol_from_sdf_text,
 )
 from ..errors import AlignmentError, MsldPrepError
+from ..sybyl_typer import SybylTypingError, annotate_sybyl_types, assign_unique_atom_names, format_mol2_text
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +64,39 @@ def neutralize(mol: Chem.Mol) -> Chem.Mol:
         return Chem.AddHs(uncharged, addCoords=True)
     except Exception as exc:  # RDKit's errors here are not a documented, closed set
         raise AlignmentError(f"Could not remove the charges from the reference: {exc!r}") from exc
+
+
+EXPORT_FORMATS = ("sdf", "mol2")
+
+
+@dataclass
+class Export:
+    """A file ready to send: its suggested name, media type and bytes."""
+
+    filename: str
+    media_type: str
+    data: bytes
+
+
+def _structure_text(mol: Chem.Mol, name: str, props: dict[str, str], fmt: str) -> str:
+    """One structure as sdf or mol2 text. `mol` is a copy the caller owns."""
+    if fmt == "sdf":
+        mol.SetProp("_Name", name)
+        for key, value in props.items():
+            mol.SetProp(key, value)
+        buffer = io.StringIO()
+        writer = Chem.SDWriter(buffer)
+        try:
+            writer.write(mol)
+        finally:
+            writer.close()
+        return buffer.getvalue()
+    try:
+        annotate_sybyl_types(mol)
+        assign_unique_atom_names(mol)
+        return format_mol2_text(mol, mol_name=name)
+    except SybylTypingError as exc:
+        raise SessionError(f"Could not write {name} as mol2: {exc}") from exc
 
 
 @dataclass
@@ -446,33 +481,53 @@ class AlignmentSession:
 
     # -- output --------------------------------------------------------------
 
-    def export_sdf(self, which: str = "aligned") -> str:
-        """The reference followed by the analogs, as one sdf text: `which` is
-        "accepted" (only those marked accepted) or "aligned" (every aligned
-        analog not marked rejected). Each record carries its RMSD and seed."""
+    def export(
+        self, fmt: str = "sdf", which: str = "aligned", *, include_reference: bool = True, one_per_file: bool = False
+    ) -> Export:
+        """The structures chosen by `which`, written as `fmt` ("sdf" or "mol2").
+
+        `which` is "accepted" (only analogs marked accepted) or "aligned" (every
+        aligned analog not marked rejected). With `include_reference` the
+        reference comes first. One file holds them all, or with `one_per_file`
+        a zip holds one file per structure, named after it.
+
+        sdf records carry the analog's RMSD and seed. mol2 is written the way
+        the notebook does (`sybyl_typer`): Sybyl atom and bond types, freshly
+        generated unique atom names, no charges.
+        """
+        if fmt not in EXPORT_FORMATS:
+            raise SessionError(f"The format must be one of {EXPORT_FORMATS}.")
         if which not in ("aligned", "accepted"):
             raise SessionError('`which` must be "aligned" or "accepted".')
         with self._lock:
             if self.reference is None:
                 raise SessionError("No reference loaded.")
-            buffer = io.StringIO()
-            writer = Chem.SDWriter(buffer)
-            try:
-                reference = Chem.Mol(self.reference)
-                reference.SetProp("_Name", self.reference_name or "reference")
-                reference.SetProp("Role", "reference")
-                writer.write(reference)
-                for entry in self.analogs.values():
-                    if entry.status != ALIGNED or entry.decision == REJECTED:
-                        continue
-                    if which == "accepted" and entry.decision != ACCEPTED:
-                        continue
-                    mol = Chem.Mol(entry.mol)
-                    mol.SetProp("_Name", entry.name)
-                    mol.SetProp("Role", "analog")
-                    mol.SetProp("AlignRMSD", f"{entry.alignment.rmsd:.4f}")
-                    mol.SetProp("AlignSeed", str(entry.alignment.seed))
-                    writer.write(mol)
-            finally:
-                writer.close()
-            return buffer.getvalue()
+            analogs = [
+                (e.name, Chem.Mol(e.mol), {"Role": "analog", "AlignRMSD": f"{e.alignment.rmsd:.4f}", "AlignSeed": str(e.alignment.seed)})
+                for e in self.analogs.values()
+                if e.status == ALIGNED and e.decision != REJECTED and (which == "aligned" or e.decision == ACCEPTED)
+            ]
+            if not analogs:
+                raise SessionError(
+                    "Nothing to export: no analog is aligned and not rejected."
+                    if which == "aligned"
+                    else "Nothing to export: no analog is marked accepted."
+                )
+            items = []
+            if include_reference:
+                reference_name = self.reference_name or "reference"
+                if one_per_file and reference_name in {name for name, _, _ in analogs}:
+                    reference_name += "_reference"  # keep its file apart from an analog of the same name
+                items.append((reference_name, Chem.Mol(self.reference), {"Role": "reference"}))
+            items += analogs
+
+        texts = [(name, _structure_text(mol, name, props, fmt)) for name, mol, props in items]
+        if one_per_file:
+            archive = io.BytesIO()
+            with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+                for name, text in texts:
+                    zf.writestr(f"{name}.{fmt}", text)
+            return Export(f"aligned_{which}_{fmt}.zip", "application/zip", archive.getvalue())
+        data = "".join(text for _, text in texts).encode()
+        media = "chemical/x-mdl-sdfile" if fmt == "sdf" else "chemical/x-mol2"
+        return Export(f"aligned_{which}.{fmt}", media, data)
