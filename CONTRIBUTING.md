@@ -71,6 +71,10 @@ python msld_prep_cli.py build --config configs/build_example.yaml
 - Work is tracked as GitHub issues at https://github.com/Truman-Xu/msld-prep/issues. Use the issue forms.
 - Open a pull request from a short-lived branch. It needs passing tests and a description of
   why the change is made. Squash-merge; delete the branch after.
+- A commit that **finishes** an issue ends its message with `Closes #N` on its own line, above the
+  `Co-Authored-By` trailer, so GitHub closes the issue when the commit reaches `main`. A commit
+  that only works toward an issue says `Part of #N`. Do not close an issue by hand without a
+  commit or a comment that says why.
 - A correctness bug (wrong charges, core, parameters or topology in the output) blocks use of
   the affected release.
 
