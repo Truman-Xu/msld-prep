@@ -7,7 +7,7 @@ first; humans read it second.
 schema: agent-handoff/1
 repo: github.com/Truman-Xu/msld-prep   # public; first push 2026-10-08
 default_branch: main
-last_updated: 2026-10-08
+last_updated: 2026-10-14
 ```
 
 ## 0. Protocol
@@ -54,6 +54,7 @@ Read this section fully. Skim the rest for what your task touches.
 | --- | --- |
 | How the code is built, conventions, architecture | `docs/dev/NOTES.md` (**not created yet**; the owner will ask for it) |
 | What work is planned, its order, its status | `docs/dev/ROADMAP.md` (**not created yet**; the owner will ask for it) |
+| Active issues and planned features (not a roadmap; no order yet) | `docs/dev/ISSUES_AND_PLANS.md` |
 | Standards the work should meet | `docs/dev/BEST_PRACTICES.md` |
 | Anything about crimm, which msldprep depends on | `/home/ziqiaoxu/crimm/docs/dev/AGENT_HANDOFF.md` (read-only for you) |
 | Who is doing what now, what was tried, what failed, traps, decisions | this file |
@@ -82,6 +83,9 @@ questions in section 7. Do not create the two files on your own.
   - `io_mcs_text.py`: the reviewable `MCS_for_MSLD.txt` checkpoint.
   - `writers/`: CHARMM and ALF output (rtf, prm, pdb, `lpsites.inp`, control and fragment
     json).
+  - `gui/`: optional alignment web GUI (`python -m msldprep.gui`): `service.py` (in-memory
+    `AlignmentSession`, no web types), `app.py` (FastAPI, token-protected), `static/` (page and
+    bundled 3Dmol.js 2.4.2). Nothing in the pipeline imports it. `[read 2026-10-14]`
   - `pipeline.py`: the two explicit steps `define_common_core` and
     `build_from_core_definition`, plus thin `run_pipeline*` wrappers.
   - Entry points at the repo root: `msld_prep_cli.py` (`from-files`, `from-smiles`, `build`),
@@ -123,6 +127,9 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-08 | The working env is `crimm-dev` if it satisfies every dependency of this project. It does (see section 3). | `[told]` |
 | 2026-10-12 | Project goal: a streamlined pipeline with only the inputs and outputs MSLD needs, in-memory objects for intermediate stages (fewer saved files), and a robust, user-friendly web GUI with visualization tailored to this process. | `[told]` |
 | 2026-10-12 | Working item 1: a web GUI for **only the alignment step** that `align.ipynb` runs. Runs on the cluster, reached by SSH tunnel. Stack: FastAPI backend plus small JS front end with 3Dmol.js; the later full app reuses the API. Input: reference with 3D coordinates as **mol2 or sdf** (no CRD, so no crimm hotfix) plus analog SMILES. Output: aligned sdf and one Sybyl-typed mol2 per analog. No CGenFF call in the GUI. Plan: `/home/ziqiaoxu/.claude/plans/thank-you-for-the-valiant-sonnet.md` (milestones M0 to M5); not started. | `[told]` |
+| 2026-10-14 | Next GUI requests: save the aligned structures as mol2 (the notebook's Sybyl typing and mol2 writer), and an option "one structure per file" for individual sdf or mol2 files; file a GitHub issue for the unfixed charged-reference bug (done: #9); make a separate commit for each issue worked on. The owner reports that all visualization features work. Pushed the four earlier commits at the owner's request; the commits made after that request are local. | `[told]` |
+| 2026-10-14 | Three requests for the GUI and the docs: (1) a GUI option to remove charges from the reference with `Uncharger`, as the notebook does; (2) a toggle to color the reference by element, gray when off; (3) a dev document of active issues and planned features, **not a roadmap** (the roadmap waits until the owner understands the original pipeline), whose first issue is matching the common structure regardless of atom charge (a charged nitrogen gives "molecule doesn't match the core"). Done as `docs/dev/ISSUES_AND_PLANS.md`; `ROADMAP.md` is still not created. | `[told]` |
+| 2026-10-14 | **Item 1 scope narrowed, and a demo is due soon.** The alignment GUI needs only the constrained embed of each analog onto the reference: no atom typing (no Sybyl or CGenFF) and no common core across the series. So no per-analog mol2 export; the download is an sdf (reference first, then analogs). The learning plan (item 2, Q13) is postponed by the owner until after the demo. | `[told]` |
 | 2026-10-12 | Working item 2: the owner is not satisfied with the current rewrite design but has not run MSLD and does not yet understand the original implementation. The next deliverable is a **learning plan** for the legacy `msld-py-prep` (not a software roadmap): detailed explanation of each module, charge renormalization, and the purpose of each output file. Design decisions and old-versus-new tests with real MSLD runs come after, with colleagues helping on CHARMM. See Q13. | `[told]` |
 
 Working agreements carried over from crimm (not owner instructions for this project; change
@@ -175,6 +182,9 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G2 | Because crimm is an editable install from `/home/ziqiaoxu/crimm`, whichever crimm branch is checked out there decides what msldprep sees. It was `cleanup/phase0-tests-and-dev-docs` on 2026-10-08. A test failure here may come from that, not from this repo. | `[ran 2026-10-08]` |
 | G3 | `ConstrainedEmbed` is not fully deterministic, which is why `build` reloads the aligned conformers from `{aligned_dir}/aligned_ligands.sdf` instead of re-aligning. Do not "simplify" step 2 to re-run alignment. | `[read pipeline.py docstring]` |
 | G3a | SUPERSEDED in part 2026-10-12 by claude-sonnet/claude-code/m0-align-api, for G3's claim only: RDKit's `ConstrainedEmbed` defaults to `randomseed=2342`, and the same analog aligned twice onto the same reference in one process gave identical coordinates (3 ChEMBL analogs, `np.allclose` and exact equality in the new tests). So the observed unreliability is not run-to-run noise for identical input. What was *not* checked: whether a different atom order, RDKit version, platform or reference conformer changes the embed, which may be what G3 saw. Keep reloading the sdf in `build`; do not rely on this to re-align. `align_to_reference(..., seed=)` now exposes the seed. | `[ran 2026-10-12]` |
+| G16 | The GUI runs one in-memory `AlignmentSession` per server, so two people on one server share and overwrite each other's work. The access token is the only protection, and the login node is shared: do not leave a server running with a guessable token (I tested with `demo123` and stopped it). The default port is a free one picked at start, because 8765 was already taken by another user's server on 2026-10-14. | `[ran 2026-10-14]` |
+| G17 | An agent cannot see the 3D view here: headless Firefox 140 on this node has no WebGL even with software-GL preferences (`webgl: False`), so `draw()` in `static/app.js` was **not** run in a browser. What was run in a real browser (Firefox through Marionette on port 2828, a throwaway profile): the whole page flow (load, align, select, accept, align again, download link) with no JavaScript errors, and 3Dmol's per-atom selection by `serial` (29 atoms, 17 core, 0 mismatches). To drive a headless browser from here, speak the Marionette protocol directly; there is no selenium or playwright. `pkill -f <pattern>` matches the agent's own shell command and kills it; use `pgrep`, then `kill <pid>`. | `[ran 2026-10-14]` |
+| G17a | SUPERSEDES G17's "no WebGL" for this node, `[ran 2026-10-14]`: WebGL works in Firefox 140 with Mesa's software renderer (`llvmpipe`) on a virtual display. Nothing was installed: `/usr/bin/Xvnc` and Mesa's `swrast_dri.so` are system packages. Recipe: `Xvnc :77 -geometry 1500x1000 -depth 24 -rfbport -1 -nolisten tcp -SecurityTypes None -rfbunixpath <scratch>/vnc.sock &`, then `DISPLAY=:77 LIBGL_ALWAYS_SOFTWARE=1 firefox --marionette --no-remote --profile <throwaway profile> about:blank &`, with these in the profile's `user.js`: `webgl.force-enabled` true, `webgl.disabled` false, `layers.acceleration.disabled` true, `webgl.forbid-software` false, `webgl.disable-angle` false. Headless mode (`MOZ_HEADLESS`) did not get WebGL; software-WebRender prefs crashed Firefox. Drive it with `scratchpad`-style Marionette code (G17); `TakeScreenshot` then shows the 3D view. **Stop Firefox (Marionette listens on 127.0.0.1:2828) and Xvnc when done**: other users of the login node can reach loopback ports and the X socket. Kill by pid (`pgrep -x firefox`, `pgrep -x Xvnc`), not `pkill -f`. | `[ran 2026-10-14]` |
 | G15 | `align.prepare_ligand_set` / `assign_isotope_labels` set isotope labels on the **reference** `Mol` too. A labeled reference no longer matches an unlabeled analog, so `align_common_core` / `align_to_reference` then raise `ValueError: molecule doesn't match the core`. Align before labeling, or use a freshly loaded reference (the new tests do). The session-scoped `reference_ligand` fixture in `tests/conftest.py` is labeled once `prepared_ligand_set` has run. The GUI must use a copy and never label. | `[ran 2026-10-12]` |
 | G4 | Aligned ligands are stored as one sdf, not per-ligand mol2, because RDKit's mol2 reader sometimes fails to re-kekulize an aromatic ring. Atom names ride in the `AtomNames` data field. | `[read align.py]` |
 | G5 | CGenFF atom types are carried on RDKit atoms as the `CGENFFAtomType` property and grouped via isotope labels starting at 300 (`align.py`). Do not use isotopes for anything else in this package. | `[read]` |
@@ -196,23 +206,25 @@ Rewrite in place. True as of `2026-10-12`.
 git:
   branch: main
   remote: origin https://github.com/Truman-Xu/msld-prep.git   # public, tracking origin/main
-  commits: nine (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
+  commits: fifteen (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
            examples, environment variables for tool paths, the unpublished-structures handoff
            entry, then the push-day docs commit; on 2026-10-12 the handoff commit (crimm hotfix
            path, GUI plan, learning-plan intent), `align_to_reference` (#3) and the text loaders (#3),
-           then this docs update
-  pushed: true                     # 2026-10-08 (first five) and 2026-10-12 (sixth, `6ccb1bd`), each at the owner's request (section 2)
+           then this docs update; on 2026-10-14 four GUI commits (service #4, page #6, API #5, the
+           charged-reference documentation #9), then the mol2 export (#7) and this handoff update
+  pushed: through `f8cb854`        # 2026-10-08, 2026-10-12 and 2026-10-14, each at the owner's request (section 2); the last two commits are local
   branch_protection: none          # not set
 github:
   issues: ["#1 reference and analog protonation states can mismatch", "#2 respect chirality of molecules through the pipeline",
-           "#3 to #8 alignment GUI milestones M0 to M5 (created 2026-10-12; M0 library support, M1 session service, M2 FastAPI API, M3 front end, M4 review and export, M5 docs)"]
+           "#3 to #8 alignment GUI milestones M0 to M5 (created 2026-10-12; M0 library support, M1 session service, M2 FastAPI API, M3 front end, M4 review and export, M5 docs)",
+           "#9 alignment fails with \"molecule doesn't match the core\" when the reference has a charged atom (created 2026-10-14; strict xfail tests)"]
   labels_created: [correctness, gui]    # on top of GitHub's defaults
   milestones: none                 # wait for ROADMAP.md
 tracked:
   - AGENTS.md, CLAUDE.md, CONTRIBUTING.md, README.md, LICENSE (GPLv3, copied from crimm's)
   - pyproject.toml, .gitignore, .github/
   - docs/dev/AGENT_HANDOFF.md, docs/dev/BEST_PRACTICES.md
-  - msldprep/, tests/, scripts/, data/, configs/, examples/2_ChEMBL
+  - msldprep/, tests/, scripts/, data/, configs/, examples/2_ChEMBL, examples/gui_demo   # msldprep/gui/ and examples/gui_demo are new and uncommitted as of 2026-10-14
   - msld_prep_cli.py, run_msld_prep.py, run_msld_prep_from_smiles.py
 excluded_locally_unpublished_series:   # .git/info/exclude; never commit (G12)
   - align.ipynb                    # the original, byte-identical to what the owner had (sha1 blob 9674a79)
@@ -235,8 +247,8 @@ not_written_on_purpose:
   - docs/dev/ROADMAP.md
   - docs/dev/NOTES.md
   - CI workflow
-test_suite: {passed: 151, skipped: 0, date: 2026-10-12, env: crimm-dev, tool variables: set}   # 136 plus 15 new in tests/test_align.py (M0, committed)
-test_suite_without_tool_variables: {passed: 78, skipped: 58, date: 2026-10-08}
+test_suite: {passed: 190, skipped: 0, xfailed: 2, date: 2026-10-14, env: crimm-dev, tool variables: set}   # 136 + 15 (M0, committed) + 26 in tests/test_gui_service.py and tests/test_gui_app.py (uncommitted)
+test_suite_without_tool_variables: {passed: 132, skipped: 58, xfailed: 2, date: 2026-10-14}
 env: crimm-dev                     # no separate env file
 crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul
 directory: /home/ziqiaoxu/msld-prep   # /home/ziqiaoxu/msld-prep-tools is a symlink to it (G11)
@@ -276,7 +288,7 @@ ROADMAP row.
 | Q10 | `align.ipynb` outputs and another user's paths? **ANSWERED 2026-10-08, superseded by Q11:** the owner asked for outputs stripped and the inputs copied in; then withdrew it because the notebook and its inputs hold unpublished structures. The notebook stays local and untracked. | 2026-10-08 |
 | Q11 | May the notebook's inputs, or anything built from the analog series, be published? **ANSWERED 2026-10-08 by the owner:** no. See the standing instruction. The public status of what *is* committed was checked before the push: all 375 tracked files under `examples/2_ChEMBL` are byte-identical to files tracked in the public `Vilseck-Lab/msld-py-prep` (anonymous `git ls-remote` works); the quinazoline SMILES in `configs/` match that public example; the SMILES in `tests/test_grouping.py` are generic biaryl compounds, not the unpublished series (`[read]`; the owner did not confirm that last point). | 2026-10-08 |
 | Q12 | `align.ipynb` fails at cell 9 on the checked-out crimm branch (G13). **PLAN 2026-10-08 `[told]`:** the fix is crimm's `RDKConverter-Het` (`8075b75`), which will not be published soon. Crimm's handoff (section 2, Orientation and log) tells its agents to remind the owner when it is published. Until then the notebook cells after 9 cannot be run on the checked-out crimm branch. Crimm is not ours to change. When reminded: re-run the notebook from cell 9, and record the crimm version that contains the fix in section 3. | 2026-10-08 |
-| Q13 | **Item 2, for the next session.** Write the learning plan for the legacy pipeline (standing instruction 2026-10-12). Seed `[read 2026-10-12]`, nothing run: **sources** are the workshop notebook `BrooksResearchGroup-UM/MSLD-Workshop`, `4msld-py-prep/faah_prep/MSLD_Py_Prep.ipynb` (58 cells), and Vilseck, Cervantes, Hayes, Brooks, JCIM 2022, 62, 1479, DOI 10.1021/acs.jcim.2c00047. **Legacy modules** in `/home/ziqiaoxu/msld-py-prep`: `msld_py_prep.py` (driver, run twice), `msld_chk.py`, `msld_mcs.py`, `msld_mcs_rdecomp.py`, `msld_crn.py` (charge renormalization and most writers), `msld_prm.py`, `msld_wrt.py`, `vis_check.py`, `CRN_Plugin/`, `Lg_Solvate.sh`, `bookending_corrections/`; the legacy repo has no tests. **Worked example** `examples/1_FAAH` (2 sites, 33 substituents): read `NOTES`, `mol_list.txt`, `1.mol2/.rtf/.prm/.str`, `MCS_for_MSLD.txt`, then `build.name/` (`core.rtf`, `core.pdb`, `site1_sub1_pres.rtf`, `site1_sub1_frag.pdb`, `site2_sub1_pres.rtf`, `lpsites.inp`, `full_ligand.prm`, `translation.txt`, `name.inp`); `examples/2_ChEMBL/msld_py_prep.log` shows a bad core. **Why CRN:** substituents at a site coexist in one system, so each needs the same net charge and the core one shared charge set; CRN averages and redistributes charge with minimal change (the paper ties charge RMSD above about 0.001 e to changed free energies). **Design questions to answer by reading, none verified:** (1) legacy deduplicates identical fragments per site (`NSUBS 19 24` for 31 ligands), msld-prep appears not to (`nsubs` 34 34 34 for 34 ligands in `build.chembl_congeneric`): intended or regression? (2) does the proportional redistribution in `crn.py` meet the same constraints as the legacy cyclic 1e-6 loop? (3) legacy `.str` splitting has no counterpart on the `from-files` path, and its config comment about `.str` may be stale; (4) which output files do CHARMM or ALF really read, and which are review artefacts only (decides "fewer saved files"); (5) `bookending_corrections/` and `Lg_Solvate.sh` have no counterpart here. **Proposed format:** per-module notes with a worked trace of one small example, a by-hand CRN exercise on two or three ligands, a side-by-side old/new run on `examples/1_FAAH` and `2_ChEMBL`, then a session with colleagues on CHARMM. Where the plan file lives is the owner's call; no `ROADMAP.md` or `NOTES.md` until asked. | 2026-10-12 |
+| Q13 | **Item 2, POSTPONED 2026-10-14 by the owner until after the GUI demo `[told]`.** Write the learning plan for the legacy pipeline (standing instruction 2026-10-12). Seed `[read 2026-10-12]`, nothing run: **sources** are the workshop notebook `BrooksResearchGroup-UM/MSLD-Workshop`, `4msld-py-prep/faah_prep/MSLD_Py_Prep.ipynb` (58 cells), and Vilseck, Cervantes, Hayes, Brooks, JCIM 2022, 62, 1479, DOI 10.1021/acs.jcim.2c00047. **Legacy modules** in `/home/ziqiaoxu/msld-py-prep`: `msld_py_prep.py` (driver, run twice), `msld_chk.py`, `msld_mcs.py`, `msld_mcs_rdecomp.py`, `msld_crn.py` (charge renormalization and most writers), `msld_prm.py`, `msld_wrt.py`, `vis_check.py`, `CRN_Plugin/`, `Lg_Solvate.sh`, `bookending_corrections/`; the legacy repo has no tests. **Worked example** `examples/1_FAAH` (2 sites, 33 substituents): read `NOTES`, `mol_list.txt`, `1.mol2/.rtf/.prm/.str`, `MCS_for_MSLD.txt`, then `build.name/` (`core.rtf`, `core.pdb`, `site1_sub1_pres.rtf`, `site1_sub1_frag.pdb`, `site2_sub1_pres.rtf`, `lpsites.inp`, `full_ligand.prm`, `translation.txt`, `name.inp`); `examples/2_ChEMBL/msld_py_prep.log` shows a bad core. **Why CRN:** substituents at a site coexist in one system, so each needs the same net charge and the core one shared charge set; CRN averages and redistributes charge with minimal change (the paper ties charge RMSD above about 0.001 e to changed free energies). **Design questions to answer by reading, none verified:** (1) legacy deduplicates identical fragments per site (`NSUBS 19 24` for 31 ligands), msld-prep appears not to (`nsubs` 34 34 34 for 34 ligands in `build.chembl_congeneric`): intended or regression? (2) does the proportional redistribution in `crn.py` meet the same constraints as the legacy cyclic 1e-6 loop? (3) legacy `.str` splitting has no counterpart on the `from-files` path, and its config comment about `.str` may be stale; (4) which output files do CHARMM or ALF really read, and which are review artefacts only (decides "fewer saved files"); (5) `bookending_corrections/` and `Lg_Solvate.sh` have no counterpart here. **Proposed format:** per-module notes with a worked trace of one small example, a by-hand CRN exercise on two or three ligands, a side-by-side old/new run on `examples/1_FAAH` and `2_ChEMBL`, then a session with colleagues on CHARMM. Where the plan file lives is the owner's call; no `ROADMAP.md` or `NOTES.md` until asked. | 2026-10-12 |
 
 ## 8. Log
 
@@ -293,6 +305,82 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-14 claude-sonnet/claude-code/gui-mol2-export
+
+- asked: commit by issue and push; file the issue for the unfixed bug; add mol2 saving (the
+  notebook's writer) and an option to write one structure per file (sdf or mol2). Also, in the
+  same turn: could WebGL be set up so the agent can check the visualization.
+- did: filed #9 (charged reference) and replaced its provisional ID `P-1` everywhere; made four
+  commits (#4 service, #6 page, #5 API, #9 documentation and xfail tests), checked each in a
+  throwaway worktree (all pass; the one failure there, `test_downstream_msld_prm_contract`, is
+  the sibling-directory expectation for `msld-py-prep`, not a defect), pushed them. Then
+  `AlignmentSession.export(fmt, which, include_reference, one_per_file)` replacing `export_sdf`,
+  `GET /api/export`, a Download section with format, reference and one-per-file options, mol2 via
+  `sybyl_typer.annotate_sybyl_types`, `assign_unique_atom_names`, `format_mol2_text` on a copy.
+  Set up WebGL (G17a). `[ran]`
+- verified `[ran]`: 190 passed, 2 xfailed (tool variables set); 132 passed, 58 skipped, 2 xfailed
+  (unset); OpenBabel's Python module reads the exported 34-structure mol2 and gives the right SMILES
+  for an analog; in Firefox with WebGL: 3D view renders (reference in gray or Jmol colors, analog core in orange, rest in
+  teal), the Download button produces sdf, mol2 and zip downloads (checked blob type, size and
+  file name), and says why when nothing is accepted; no JavaScript error.
+- not verified: opening the downloaded files from the real browser's download folder;
+  the mol2 in CHARMM/CGenFF (the writer is the notebook's, but charges are `NO_CHARGES` and the
+  reference's own mol2 atom names are replaced); very large series.
+- found: the reference's original atom names are not kept in the mol2 export (all names are
+  regenerated), and formal charges are not written (as in the notebook's writer).
+- next: owner pushes or asks for the push of the last two commits; look at issues #4 to #8 and
+  close or rewrite them against what was built; the learning plan (Q13) when the owner is ready.
+
+### 2026-10-14 claude-sonnet/claude-code/gui-charge-color-issues-doc
+
+- asked: GUI option to remove reference charges (`Uncharger`), a color-by-element toggle for the
+  reference, and a dev document of active issues and planned features (not a roadmap) starting
+  with the charged-atom matching failure.
+- did: `service.neutralize` and `AlignmentSession.set_neutralize_reference`, `PUT
+  /api/reference/neutralize`, a checkbox in the page; a "Color reference by element" toggle
+  (Jmol colors, gray when off, element chips in the legend, remembered in `localStorage`);
+  a hint on alignment errors caused by a charged reference; `docs/dev/ISSUES_AND_PLANS.md`
+  (template, active issues, planned features F-1 to F-10, open design questions, done list);
+  strict `xfail` tests for P-1; 7 new tests. Nothing committed; no GitHub issue created. `[ran]`
+- verified `[ran]`: 184 passed and 2 xfailed with the tool variables set; in headless Firefox
+  with a charged reference: alignment fails with the P-1 message, the checkbox neutralizes
+  (`net charge 1 to 0`, 29 to 28 atoms), alignment then succeeds, the color toggle shows element
+  chips (Br, C, N with Jmol colors) and H when hydrogens are shown, both settings survive a
+  reload, no JavaScript error before the reload.
+- not verified: the colored reference in the 3D view (no WebGL here, G17); `Uncharger` on
+  zwitterions or metals; neutralizing when the reference came from a mol2 with its own
+  charge model. Offline run (tool variables unset): 127 passed, 58 skipped, 2 xfailed.
+- found: P-1 only breaks when the **reference** is charged (a charged analog onto a neutral
+  reference aligns); `FindMCS` finds the structure by element but `PathToSubmol(useQuery=True)`
+  makes charged atoms require their charge, so `ConstrainedEmbed`'s own re-match fails.
+- next: owner decides: create the GitHub issue for P-1 (then replace `P-1` in the doc and the
+  `xfail` reason by the number); commit the GUI work; look at the 3D view.
+
+### 2026-10-14 claude-sonnet/claude-code/gui-demo-build
+
+- asked: build the alignment GUI for a demo soon; only the constrained embed onto the reference
+  is needed (no atom typing, no common core); the learning plan waits.
+- did: added `msldprep/gui/` (`service.py`, `app.py`, `__main__.py`, `static/index.html`,
+  `style.css`, `app.js`, bundled 3Dmol.js 2.4.2 with its licence files), `[web]` extra and
+  `httpx` in the `test` extra and `gui/static/*` package data in `pyproject.toml`, the README
+  section, `examples/gui_demo/analogs.txt` (SMILES derived from the public `2_ChEMBL` mol2 files,
+  35 lines incl. two that must fail), 26 tests (`tests/test_gui_service.py`,
+  `tests/test_gui_app.py`). This covers the work of issues #4, #5 and parts of #6, #7, #8 in one
+  slice, with the narrower scope (no Sybyl mol2 export, sdf only; one session per server,
+  not session ids). Nothing committed. `[ran]`
+- verified `[ran]`: 177 passed, 0 skipped with the tool variables set; 119 passed, 58 skipped
+  without; the live server over HTTP (403 without token, 200 with, 404/422 messages, export);
+  the page flow in headless Firefox with no JavaScript errors; 35 demo analogs align in 2.4 s.
+- not verified: the 3D view (`draw()`) in any browser (G17); behaviour in the owner's browser
+  through the tunnel; a wheel build with the static files; large series; the `Align again` pose
+  quality by eye; dark mode.
+- found: G16, G17. `core_atoms` and `reference_core_atoms` in the API are each sorted, so the two
+  lists are not index pairs (the analog-to-reference pairing is `CoreAlignment.atom_map`, not
+  sent). A realigned analog loses its accept/reject decision on purpose (new pose).
+- next: owner tries it through the tunnel and reports what the 3D view does; then commit (the
+  work is one concern per issue, so it can be split by #4/#5/#6); update issues #4 to #8 for the
+  narrower scope; decide whether to keep one-session-per-server.
 
 ### 2026-10-12 claude-sonnet/claude-code/m0-align-api
 

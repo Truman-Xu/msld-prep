@@ -118,9 +118,9 @@ Unordered. Nothing here is scheduled.
 
 | ID | Feature | Why | Depends on | Issue | Notes |
 | --- | --- | --- | --- | --- | --- |
-| F-1 | Alignment GUI, first slice | demo to the lab; check alignments by eye | none | #3 to #8 | Built 2026-10-14, see "Done". Open: 3D view not yet seen in a browser by an agent; issues #4 to #8 describe a wider plan than what was built |
+| F-1 | Alignment GUI, first slice | demo to the lab; check alignments by eye | none | #3 to #8 | Built 2026-10-14, see "Done"; the 3D view was checked in Firefox with software WebGL on 2026-10-14. Issues #4 to #8 describe a wider plan than what was built |
 | F-2 | Show the protein pocket in the GUI for clash checks | the workshop notebook asks for it | F-1 | none | load a PDB for display only |
-| F-3 | Export Sybyl-typed mol2 per analog from the GUI | what the notebook hands to CGenFF | F-1 | #7 | dropped from the first slice on 2026-10-14 (no atom typing wanted yet) |
+| F-3 | Export Sybyl-typed mol2 per analog from the GUI | what the notebook hands to CGenFF | F-1 | #7 | **Done 2026-10-14**, see "Done" |
 | F-4 | Several users or sessions on one GUI server | today one session per server (G16) | F-1 | none | needs session ids in the API |
 | F-5 | Take already-parameterized sets (mol2 + rtf + prm) in the GUI | reuse existing CGenFF output | F-1 | none | |
 | F-6 | Carry the GUI's aligned set into `define_common_core` | one tool from alignment to the build | F-1, design decisions | none | blocked on the learning plan |
@@ -157,3 +157,4 @@ order with reasons, and link each to its issue.
 | 2026-10-14 | Alignment GUI first slice: load a reference and analog SMILES, constrained embed, 3D and 2D views, accept or reject, align again with a seed, sdf download | F-1; `msldprep/gui/`, uncommitted when written |
 | 2026-10-14 | GUI option to remove charges from the reference with `Uncharger` (the notebook's step) | `msldprep/gui/service.py::neutralize` |
 | 2026-10-14 | GUI toggle to color the reference by element; gray when off | `msldprep/gui/static/app.js` |
+| 2026-10-14 | GUI download as sdf or mol2 (the notebook's Sybyl typing and mol2 writer), one file or one file per structure (zip), with or without the reference | F-3, #7; `msldprep/gui/service.py::AlignmentSession.export` |
