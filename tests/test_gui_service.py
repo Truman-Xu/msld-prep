@@ -343,10 +343,11 @@ def test_reference_view_lists_its_elements(session):
     assert elements == sorted(set(elements)) and {"C", "H", "N"} <= set(elements)
 
 
-def test_a_failure_caused_by_a_charged_reference_says_so():
+def test_a_charged_reference_aligns_without_removing_its_charges():
+    # #9: the charge is no longer part of what an analog has to match
     session = AlignmentSession()
     session.set_reference("charged", _charged_reference_block())
     session.set_analogs(ANALOG_TEXT)
     session.align_all()
-    errors = [a["error"] for a in session.summary()["analogs"]]
-    assert all("try removing its charges" in e for e in errors)
+    assert set(_status(session).values()) == {"aligned"}
+    assert session.summary()["reference"]["net_charge"] == 1

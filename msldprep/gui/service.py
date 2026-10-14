@@ -332,9 +332,6 @@ class AlignmentSession:
                 alignment = align_to_reference(mol, reference, mcs=params.mcs, seed=seed)
             except _EMBEDDING_EXCEPTIONS as exc:
                 error = str(exc) or exc.__class__.__name__
-                if "match the core" in error and any(a.GetFormalCharge() for a in reference.GetAtoms()):
-                    # #9: the reference's charges are part of the core the analog must match
-                    error += " The reference has charged atoms: try removing its charges."
         with self._lock:
             entry = self._entry(name)
             entry.decision = UNDECIDED

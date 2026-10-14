@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from typing import Sequence
 
 from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem.rdFMCS import AtomCompare, FindMCS
+from rdkit.Chem import AllChem, rdMolAlign
+from rdkit.Chem.rdFMCS import AtomCompare, BondCompare, FindMCS
 
 from .datamodel import LigandRecord
 from .errors import AlignmentError
@@ -223,14 +223,21 @@ DEFAULT_EMBED_SEED = 2342
 
 @dataclass(frozen=True)
 class McsOptions:
-    """The `FindMCS` settings `align_to_reference` exposes. Defaults reproduce
-    the behavior before they were configurable. `timeout` is in seconds;
-    None keeps RDKit's own default.
+    """The `FindMCS` settings `align_to_reference` exposes. `timeout` is in
+    seconds; None keeps RDKit's own default.
+
+    Atoms are matched by element only, so charges, hydrogen counts and
+    isotope labels never matter. Bond orders do, unless `ignore_bond_orders`
+    is set: then any bond matches any bond, which lets a molecule match its
+    tautomer or protonation variant even where RDKit perceives the ring
+    differently (aromatic in one, alternating single and double bonds in the
+    other).
     """
 
     complete_rings_only: bool = True
     ring_matches_ring_only: bool = False
     timeout: int | None = None
+    ignore_bond_orders: bool = False
 
 
 @dataclass
@@ -239,8 +246,9 @@ class CoreAlignment:
 
     `atom_map` maps each core atom's index in the aligned `mol` to the index
     of the matching atom in the reference (heavy atoms only, since the MCS
-    search runs without Hs). `rmsd` is RDKit's `EmbedRMS` (angstrom): the
-    RMSD between those atom pairs after the final alignment onto the core.
+    search runs without Hs). `rmsd` is the RMSD (angstrom) between those
+    atom pairs after the final alignment onto the reference (RDKit's
+    `EmbedRMS` measure, also set as that property on the aligned molecule).
     """
 
     core: Chem.Mol
@@ -249,13 +257,49 @@ class CoreAlignment:
     seed: int
 
 
+def _embed_onto_reference(mol: Chem.Mol, ref_mol: Chem.Mol, atom_map: dict[int, int], seed: int) -> float:
+    """Embed `mol` with the atoms in `atom_map` (index in `mol` to index in
+    `ref_mol`) placed on the reference's positions, optimize it with those
+    atoms tethered there, and fit it onto them. Returns the RMSD of the
+    mapped atoms. Mutates `mol`.
+
+    Adapted from RDKit's `AllChem.ConstrainedEmbed` (BSD-3-Clause, with
+    `useTethers=True`): the same steps, but the atom pairs come from the MCS
+    that was already found rather than from matching a core query again,
+    which would require the charges and bond orders of the reference to
+    match exactly.
+    """
+    ref_conf = ref_mol.GetConformer()
+    pairs = list(atom_map.items())
+    coord_map = {i: ref_conf.GetAtomPosition(j) for i, j in pairs}
+    if AllChem.EmbedMolecule(mol, coordMap=coord_map, randomSeed=seed) < 0:
+        raise ValueError("Could not embed molecule.")
+    rdMolAlign.AlignMol(mol, ref_mol, atomMap=pairs)
+    ff = AllChem.UFFGetMoleculeForceField(mol, confId=0)
+    for i, j in pairs:
+        point = ref_conf.GetAtomPosition(j)
+        extra = ff.AddExtraPoint(point.x, point.y, point.z, fixed=True) - 1
+        ff.AddDistanceConstraint(extra, i, 0, 0, 100.0)
+    ff.Initialize()
+    remaining = 4
+    more = ff.Minimize(energyTol=1e-4, forceTol=1e-3)
+    while more and remaining:
+        more = ff.Minimize(energyTol=1e-4, forceTol=1e-3)
+        remaining -= 1
+    rmsd = rdMolAlign.AlignMol(mol, ref_mol, atomMap=pairs)
+    mol.SetProp("EmbedRMS", str(rmsd))
+    return rmsd
+
+
 def align_to_reference(
     mol: Chem.Mol, ref_mol: Chem.Mol, *, mcs: McsOptions = McsOptions(), seed: int = DEFAULT_EMBED_SEED
 ) -> CoreAlignment:
     """3D-align `mol` onto `ref_mol` by embedding it tethered to their shared core.
 
+    The core is their maximum common substructure by element (see
+    `McsOptions`), so differing charges or hydrogen counts do not matter.
     Mutates `mol` in place (adds/replaces its conformer). The same inputs
-    and `seed` give the same conformer. Where the core matches `mol` in
+    and `seed` give the same conformer. Where the core matches a molecule in
     more than one way (a symmetric group), the first match RDKit returns is
     the one embedded and reported in `atom_map`.
     """
@@ -263,11 +307,13 @@ def align_to_reference(
     # FindMCS on explicit-H mols is combinatorially explosive (many
     # equivalent H atoms blow up the clique search); the tether/core we
     # need is heavy-atom-only anyway, so search without Hs and match the
-    # result back onto the original (still-protonated) ref_mol below.
+    # result back onto the original (still-protonated) molecules below.
     mcs_kwargs = {
         "completeRingsOnly": mcs.complete_rings_only,
         "ringMatchesRingOnly": mcs.ring_matches_ring_only,
     }
+    if mcs.ignore_bond_orders:
+        mcs_kwargs["bondCompare"] = BondCompare.CompareAny
     if mcs.timeout is not None:
         mcs_kwargs["timeout"] = mcs.timeout
     mcs_result = FindMCS([Chem.RemoveHs(mol), Chem.RemoveHs(ref_mol)], **mcs_kwargs)
@@ -281,21 +327,18 @@ def align_to_reference(
         msg = "FindMCS found no shared substructure between the two molecules."
         logger.error(msg)
         raise ValueError(msg)
-    substruct_map = ref_mol.GetSubstructMatch(mcs_result.queryMol)
-    bond_path = _bond_path_for_atoms(substruct_map, ref_mol)
-    ref_to_core: dict[int, int] = {}
-    core = Chem.PathToSubmol(ref_mol, bond_path, useQuery=True, atomMap=ref_to_core)
+    # The MCS query has heavy atoms only, so it matches the molecules with
+    # their hydrogens too, and the indices it returns are indices in them.
+    ref_match = ref_mol.GetSubstructMatch(mcs_result.queryMol)
+    mol_match = mol.GetSubstructMatch(mcs_result.queryMol)
+    if not ref_match or not mol_match:
+        msg = "The common substructure found by FindMCS could not be matched back onto the molecules."
+        logger.error(msg)
+        raise ValueError(msg)
+    atom_map = dict(zip(mol_match, ref_match))
+    core = Chem.PathToSubmol(ref_mol, _bond_path_for_atoms(ref_match, ref_mol))
     logger.debug(f'Embedding analog structure with MCS constraint')
-    AllChem.ConstrainedEmbed(mol, core, useTethers=True, randomseed=seed)
-
-    # ConstrainedEmbed pairs core atom i with match[i], where match is the
-    # first substructure match of the core on `mol`; recompute it to report
-    # the same pairing it embedded with.
-    match = mol.GetSubstructMatch(core)
-    atom_map = {match[core_idx]: ref_idx for ref_idx, core_idx in ref_to_core.items()}
-    # ConstrainedEmbed stores the core-atom RMSD of its final alignment in
-    # this mol property.
-    rmsd = float(mol.GetProp("EmbedRMS"))
+    rmsd = _embed_onto_reference(mol, ref_mol, atom_map, seed)
     return CoreAlignment(core=core, atom_map=atom_map, rmsd=rmsd, seed=seed)
 
 

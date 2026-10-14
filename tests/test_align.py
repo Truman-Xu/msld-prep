@@ -266,12 +266,6 @@ def _embedded(smiles: str) -> Chem.Mol:
     return mol
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=ValueError,
-    reason="#9 (docs/dev/ISSUES_AND_PLANS.md): the core query built from the reference requires its "
-    "formal charges, so a neutral analog does not match it: \"molecule doesn't match the core\"",
-)
 @pytest.mark.parametrize(
     "reference_smiles, analog_smiles",
     [
@@ -286,8 +280,33 @@ def test_align_to_reference_matches_atoms_whatever_their_charge(reference_smiles
 
 
 def test_a_charged_analog_aligns_onto_a_neutral_reference():
-    # the other direction of #9 works today: only a charged *reference* breaks the match
+    # the other direction of #9, which always worked
     result = align.align_to_reference(
         _embedded("Oc1ccc2c(Nc3cccc(Br)c3)[nH+]cnc2c1"), _embedded("c1ccc2c(c1)c(ncn2)Nc1cccc(Br)c1")
     )
     assert result.atom_map
+
+
+def test_the_core_is_matched_by_element_so_an_isotope_labeled_reference_still_aligns(reference_ligand, prepared_ligand_set):
+    # `prepared_ligand_set` labels the shared reference's atoms with isotopes (G15)
+    assert any(atom.GetIsotope() for atom in reference_ligand.mol.GetAtoms())
+    result = align.align_to_reference(_fresh_analog_mol(ANALOG_STEMS[0]), reference_ligand.mol)
+    assert result.atom_map
+
+
+_TAUTOMER_PAIRS = [
+    ("O=c1[nH]cnc2ccccc12", "Oc1ncnc2ccccc12", 11),  # quinazolin-4-one and its hydroxy tautomer
+    ("O=c1cccc[nH]1", "Oc1ccccn1", 7),  # 2-pyridone and 2-hydroxypyridine
+    ("Cc1ccnc(N)n1", "CC1=CC=NC(=N)N1", 8),  # aminopyrimidine and its imino tautomer
+]
+
+
+@pytest.mark.parametrize("reference_smiles, analog_smiles, heavy_atoms", _TAUTOMER_PAIRS)
+@pytest.mark.parametrize("ring_matches_ring_only", [False, True])
+def test_ignoring_bond_orders_matches_a_tautomer_in_full(reference_smiles, analog_smiles, heavy_atoms, ring_matches_ring_only):
+    def core_size(ignore_bond_orders):
+        options = align.McsOptions(ignore_bond_orders=ignore_bond_orders, ring_matches_ring_only=ring_matches_ring_only)
+        return len(align.align_to_reference(_embedded(analog_smiles), _embedded(reference_smiles), mcs=options).atom_map)
+
+    assert core_size(False) == heavy_atoms - 1  # the atom whose bond order changed is dropped
+    assert core_size(True) == heavy_atoms
