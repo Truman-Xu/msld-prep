@@ -30,7 +30,9 @@ classifiers = [
 
 [project.optional-dependencies]
 # pandas is needed only by the unmodified legacy msld_prm.py that one test imports.
-test = ["pytest>=7", "pandas"]
+test = ["pytest>=7", "pandas", "httpx"]
+# The alignment GUI (`python -m msldprep.gui`); imported only inside msldprep/gui/.
+web = ["fastapi>=0.110", "uvicorn>=0.27"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -42,4 +44,4 @@ include = ["msldprep*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-msldprep = ["writers/templates/*.tmpl"]
+msldprep = ["writers/templates/*.tmpl", "gui/static/*"]
