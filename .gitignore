@@ -8,3 +8,6 @@ dist/
 # Run output of msld_prep_cli.py and the run_msld_prep*.py scripts
 build.*/
 work.*/
+
+# The owner's test structures, some from unpublished work: never committed.
+test_structures/
