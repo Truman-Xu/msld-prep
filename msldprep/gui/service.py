@@ -264,7 +264,7 @@ class AlignmentSession:
         seed: int | None = None,
     ) -> None:
         """Change settings used by the next alignment; None leaves one as is.
-        A `timeout` of 0 returns RDKit's default."""
+        `timeout` is the core search's time limit in seconds, at least 1."""
         with self._lock:
             self._require_idle()
             mcs = self.params.mcs
@@ -275,9 +275,9 @@ class AlignmentSession:
             if ignore_bond_orders is not None:
                 mcs = replace(mcs, ignore_bond_orders=ignore_bond_orders)
             if timeout is not None:
-                if timeout < 0:
-                    raise SessionError("The MCS timeout cannot be negative.")
-                mcs = replace(mcs, timeout=timeout or None)
+                if timeout < 1:
+                    raise SessionError("The core search time limit must be at least 1 second.")
+                mcs = replace(mcs, timeout=timeout)
             self.params = AlignParams(mcs=mcs, seed=self.params.seed if seed is None else seed)
 
     # -- alignment -----------------------------------------------------------
@@ -382,7 +382,7 @@ class AlignmentSession:
                     "complete_rings_only": mcs.complete_rings_only,
                     "ring_matches_ring_only": mcs.ring_matches_ring_only,
                     "ignore_bond_orders": mcs.ignore_bond_orders,
-                    "timeout": mcs.timeout or 0,
+                    "timeout": mcs.timeout,
                     "seed": self.params.seed,
                 },
                 "job": {"running": self.job.running, "done": self.job.done, "total": self.job.total},
@@ -396,6 +396,7 @@ class AlignmentSession:
                         "rmsd": e.alignment.rmsd if e.alignment else None,
                         "seed": e.alignment.seed if e.alignment else None,
                         "core_atoms": len(e.alignment.atom_map) if e.alignment else None,
+                        "mcs_timed_out": bool(e.alignment and e.alignment.mcs_timed_out),
                     }
                     for e in self.analogs.values()
                 ],
@@ -434,6 +435,7 @@ class AlignmentSession:
                 reference_core_atoms=sorted(alignment.atom_map.values()),
                 rmsd=alignment.rmsd,
                 seed=alignment.seed,
+                mcs_timed_out=alignment.mcs_timed_out,
                 svg=_depiction_svg(entry.mol, set(alignment.atom_map)),
                 reference_svg=_depiction_svg(self.reference, set(alignment.atom_map.values())),
             )

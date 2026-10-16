@@ -243,8 +243,10 @@ def test_params_reach_the_alignment_and_are_validated(session):
     session.set_analogs("Oc1ccc2c(Nc3cccc(Br)c3)ncnc2c1 a")
     session.align_all()
     assert session.summary()["analogs"][0]["seed"] == 11
-    with pytest.raises(SessionError):
-        session.set_params(timeout=-1)
+    for bad in (-1, 0):
+        with pytest.raises(SessionError, match="at least 1 second"):
+            session.set_params(timeout=bad)
+    assert AlignmentSession().summary()["params"]["timeout"] == 10
 
 
 def test_alignment_needs_a_reference_and_analogs():

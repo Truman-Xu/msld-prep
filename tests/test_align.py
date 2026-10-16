@@ -310,3 +310,40 @@ def test_ignoring_bond_orders_matches_a_tautomer_in_full(reference_smiles, analo
 
     assert core_size(False) == heavy_atoms - 1  # the atom whose bond order changed is dropped
     assert core_size(True) == heavy_atoms
+
+
+def _spy_on_find_mcs(monkeypatch, *, canceled=False):
+    """Replace `align.FindMCS` by a wrapper that records its keyword arguments and
+    can report the search as cancelled (the time limit hit)."""
+    import types
+
+    calls = []
+    real = align.FindMCS
+
+    def wrapper(mols, **kwargs):
+        calls.append(kwargs)
+        result = real(mols, **kwargs)
+        return types.SimpleNamespace(queryMol=result.queryMol, canceled=canceled or result.canceled)
+
+    monkeypatch.setattr(align, "FindMCS", wrapper)
+    return calls
+
+
+def test_the_core_search_has_a_ten_second_limit_by_default(monkeypatch):
+    calls = _spy_on_find_mcs(monkeypatch)
+    result = align.align_to_reference(_embedded("Oc1ncnc2ccccc12"), _embedded("O=c1[nH]cnc2ccccc12"))
+    assert calls[0]["timeout"] == 10
+    assert result.mcs_timed_out is False
+
+
+def test_the_limit_can_be_changed_or_left_to_rdkit(monkeypatch):
+    calls = _spy_on_find_mcs(monkeypatch)
+    for options, expected in ((align.McsOptions(timeout=3), 3), (align.McsOptions(timeout=None), None)):
+        align.align_to_reference(_embedded("Oc1ncnc2ccccc12"), _embedded("O=c1[nH]cnc2ccccc12"), mcs=options)
+        assert calls[-1].get("timeout") == expected
+
+
+def test_a_search_that_hit_its_limit_is_flagged_in_the_result(monkeypatch):
+    _spy_on_find_mcs(monkeypatch, canceled=True)
+    result = align.align_to_reference(_embedded("Oc1ncnc2ccccc12"), _embedded("O=c1[nH]cnc2ccccc12"))
+    assert result.mcs_timed_out is True and result.atom_map

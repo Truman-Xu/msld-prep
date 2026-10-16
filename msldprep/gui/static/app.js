@@ -141,6 +141,7 @@ function renderDetail() {
     add("RMSD of core", `${view.rmsd.toFixed(3)} Å`);
     add("Core atoms", String(view.core_atoms.length));
     add("Seed", String(view.seed));
+    if (view.mcs_timed_out) add("Core search", "hit its time limit; the best structure found is used");
     $("r-seed").value = view.seed + 1;
   }
   box.append(dl);
@@ -319,7 +320,7 @@ async function align() {
       complete_rings_only: $("p-complete").checked,
       ring_matches_ring_only: $("p-ringring").checked,
       ignore_bond_orders: $("p-anybond").checked,
-      timeout: Number($("p-timeout").value) || 0,
+      timeout: Number($("p-timeout").value) || 10,
       seed: Number($("p-seed").value) || 0,
     },
   });

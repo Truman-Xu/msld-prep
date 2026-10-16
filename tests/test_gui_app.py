@@ -81,7 +81,7 @@ def test_errors_come_back_as_messages_not_crashes(client):
     junk = client.put("/api/reference", json={"name": "x", "text": "junk"})
     assert junk.status_code == 422 and "Expected one molecule" in junk.json()["detail"]
     assert client.get("/api/analogs/nope").status_code == 404
-    assert client.put("/api/params", json={"timeout": -1}).status_code == 422
+    assert client.put("/api/params", json={"timeout": 0}).status_code == 422
     assert client.put("/api/analogs", json={"text": "# nothing here"}).status_code == 422
     assert client.get("/api/export").status_code == 422  # no reference
     assert client.get("/api/export", params={"format": "pdb"}).status_code == 422

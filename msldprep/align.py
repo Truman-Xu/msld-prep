@@ -224,7 +224,10 @@ DEFAULT_EMBED_SEED = 2342
 @dataclass(frozen=True)
 class McsOptions:
     """The `FindMCS` settings `align_to_reference` exposes. `timeout` is in
-    seconds; None keeps RDKit's own default.
+    seconds and defaults to 10: on some pairs the search cannot prove that its
+    result is the largest and, with RDKit's own limit (None here), would run
+    for an hour. After the limit it returns the best structure found so far,
+    flagged in `CoreAlignment.mcs_timed_out`.
 
     Atoms are matched by element only, so charges, hydrogen counts and
     isotope labels never matter. Bond orders do, unless `ignore_bond_orders`
@@ -236,7 +239,7 @@ class McsOptions:
 
     complete_rings_only: bool = True
     ring_matches_ring_only: bool = False
-    timeout: int | None = None
+    timeout: int | None = 10
     ignore_bond_orders: bool = False
 
 
@@ -255,6 +258,7 @@ class CoreAlignment:
     atom_map: dict[int, int]
     rmsd: float
     seed: int
+    mcs_timed_out: bool = False  # the core is the best found within the time limit, not proven largest
 
 
 def _embed_onto_reference(mol: Chem.Mol, ref_mol: Chem.Mol, atom_map: dict[int, int], seed: int) -> float:
@@ -339,7 +343,9 @@ def align_to_reference(
     core = Chem.PathToSubmol(ref_mol, _bond_path_for_atoms(ref_match, ref_mol))
     logger.debug(f'Embedding analog structure with MCS constraint')
     rmsd = _embed_onto_reference(mol, ref_mol, atom_map, seed)
-    return CoreAlignment(core=core, atom_map=atom_map, rmsd=rmsd, seed=seed)
+    if mcs_result.canceled:
+        logger.warning("The MCS search hit its %s s limit; using the best structure found.", mcs.timeout)
+    return CoreAlignment(core=core, atom_map=atom_map, rmsd=rmsd, seed=seed, mcs_timed_out=bool(mcs_result.canceled))
 
 
 def align_common_core(mol: Chem.Mol, ref_mol: Chem.Mol, *, complete_rings_only: bool = True) -> Chem.Mol:
