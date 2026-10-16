@@ -403,3 +403,83 @@ def test_one_orientation_can_be_asked_for():
         _embedded(_ORTHO_ANALOG), _embedded(_ORTHO_REFERENCE), mcs=align.McsOptions(max_orientations=1)
     )
     assert result.orientations == 1
+
+
+# --- stereochemistry (#2) -------------------------------------------------------------------------
+
+_STEREO_REFERENCE = "C[C@H](c1ccc(Cl)cc1)C(=O)NC"  # one stereocentre, inside the core shared with the analogs below
+_SAME = "C[C@H](c1ccc(F)cc1)C(=O)NCC"
+_OPPOSITE = "C[C@@H](c1ccc(F)cc1)C(=O)NCC"
+_UNSPECIFIED = "CC(c1ccc(F)cc1)C(=O)NCC"
+
+
+def _stereo_smiles_from_3d(mol: Chem.Mol) -> str:
+    """The isomeric SMILES of the stereochemistry the coordinates have."""
+    copy = Chem.Mol(mol)
+    Chem.AssignStereochemistryFrom3D(copy)
+    return Chem.MolToSmiles(Chem.RemoveHs(copy))
+
+
+def _aligned(smiles: str, reference: Chem.Mol, *, seed: int = align.DEFAULT_EMBED_SEED, **options):
+    analog = Chem.AddHs(Chem.MolFromSmiles(smiles))
+    result = align.align_to_reference(analog, Chem.Mol(reference), mcs=align.McsOptions(**options), seed=seed)
+    return analog, result
+
+
+def test_the_stereochemistry_an_analog_specifies_is_kept_and_agrees_with_the_reference():
+    reference = _embedded(_STEREO_REFERENCE)
+    analog, result = _aligned(_SAME, reference)
+    assert _stereo_smiles_from_3d(analog) == Chem.MolToSmiles(Chem.MolFromSmiles(_SAME))
+    (center,) = result.stereo
+    assert (center.resolved_by, center.in_core, center.opposes_reference) == ("analog", True, False)
+
+
+def test_the_opposite_configuration_is_kept_but_flagged_as_opposing_the_reference():
+    reference = _embedded(_STEREO_REFERENCE)
+    analog, result = _aligned(_OPPOSITE, reference)
+    assert _stereo_smiles_from_3d(analog) == Chem.MolToSmiles(Chem.MolFromSmiles(_OPPOSITE))  # not overruled
+    (center,) = result.stereo
+    assert center.opposes_reference is True
+
+
+@pytest.mark.parametrize("seed", [2342, 1, 2, 3])
+def test_an_unspecified_centre_takes_the_reference_configuration_whatever_the_seed(seed):
+    reference = _embedded(_STEREO_REFERENCE)
+    analog, result = _aligned(_UNSPECIFIED, reference, seed=seed)
+    assert _stereo_smiles_from_3d(analog) == Chem.MolToSmiles(Chem.MolFromSmiles(_SAME))
+    (center,) = result.stereo
+    assert (center.resolved_by, center.in_core) == ("reference", True)
+
+
+def test_a_centre_the_reference_cannot_decide_is_chosen_by_energy_and_flagged():
+    reference = _embedded("c1ccccc1CC(=O)O")  # no stereocentre anywhere, and no nitrogen to hold the analog's amide
+    analog, result = _aligned("c1ccccc1CC(=O)NC(C)CC", reference)  # the sec-butyl centre is outside the core
+    (center,) = result.stereo
+    assert (center.resolved_by, center.in_core) == ("energy", False)
+    # the structure now has a stereocentre with a configuration, not an undefined one
+    assert all(
+        info.specified == Chem.StereoSpecified.Specified
+        for info in Chem.FindPotentialStereo(analog)
+        if info.type == Chem.StereoType.Atom_Tetrahedral
+    )
+
+
+def test_a_centre_inside_the_core_is_not_decided_by_a_reference_without_stereo():
+    # the reference has a plain ring carbon where the analog has a centre: nothing to copy
+    reference = _embedded("CN1CCC(C)CC1")
+    analog, result = _aligned("CN1CC(C)CCC1", reference)
+    (center,) = result.stereo
+    assert center.resolved_by == "energy" and center.opposes_reference is None
+
+
+@pytest.mark.parametrize("smiles", ["C[C@H]1C[C@@H](C)CN(C)C1", "C[C@H]1C[C@H](C)CN(C)C1"])
+def test_cis_and_trans_ring_isomers_keep_their_relative_configuration(smiles):
+    reference = _embedded("CN1CCC(C)CC1")
+    analog, _ = _aligned(smiles, reference)
+    assert _stereo_smiles_from_3d(analog) == Chem.MolToSmiles(Chem.MolFromSmiles(smiles))
+
+
+def test_a_stereoisomer_limit_of_one_still_gives_an_alignment():
+    reference = _embedded("c1ccccc1CC(=O)NC")
+    analog, result = _aligned("c1ccccc1CC(=O)NC(C)CC", reference, max_stereoisomers=1)
+    assert result.atom_map and analog.GetNumConformers() == 1

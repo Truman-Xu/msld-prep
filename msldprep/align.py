@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 import os
 from dataclasses import dataclass, field
@@ -11,6 +12,7 @@ from typing import Sequence
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdMolAlign
+from rdkit.Chem.EnumerateStereoisomers import EnumerateStereoisomers, StereoEnumerationOptions
 from rdkit.Chem.rdFMCS import AtomCompare, BondCompare, FindMCS
 
 from .datamodel import LigandRecord
@@ -245,6 +247,32 @@ class McsOptions:
     # How many distinct ways the core may sit on a symmetric part of the analog
     # (a ring that can flip) to try; 1 uses the first match only.
     max_orientations: int = 32
+    # How many stereoisomers to try when the analog leaves stereocentres unspecified.
+    max_stereoisomers: int = 16
+
+
+@dataclass(frozen=True)
+class StereoCenter:
+    """What `align_to_reference` did about one tetrahedral stereocentre of the analog.
+
+    `resolved_by` is "analog" when the analog's structure specifies it (kept as
+    given); "reference" when it was unspecified, inside the core, and the
+    reference has a stereocentre on the atom it maps to, so the configuration
+    that fits the reference's geometry was taken; and "energy" otherwise (the
+    reference cannot decide it), so the configuration with the lowest
+    force-field energy of the aligned pose was taken: nothing the user gave
+    decided it, so it deserves a look. "equivalent" marks an unspecified centre
+    whose every setting gives the same molecule (nothing was decided). `opposes_reference` is True for a
+    specified centre inside the core, on an atom where the reference has a
+    stereocentre, whose inverted configuration fits the reference clearly
+    better (the analog is probably the opposite configuration there); None
+    when that does not apply or could not be checked.
+    """
+
+    atom: int
+    in_core: bool
+    resolved_by: str
+    opposes_reference: bool | None = None
 
 
 @dataclass
@@ -265,6 +293,7 @@ class CoreAlignment:
     mcs_timed_out: bool = False  # the core is the best found within the time limit, not proven largest
     orientations: int = 1  # distinct ways the core fits the analog, up to `McsOptions.max_orientations`
     orientation: int = 0  # index of the one used
+    stereo: tuple[StereoCenter, ...] = ()
 
 
 def _embed_onto_reference(mol: Chem.Mol, ref_mol: Chem.Mol, atom_map: dict[int, int], seed: int) -> float:
@@ -344,6 +373,117 @@ def _substituent_overlap(mol: Chem.Mol, core_atoms: set[int], ref_mol: Chem.Mol,
     return float(np.exp(-squared / (2 * _OVERLAP_SIGMA**2)).sum())
 
 
+_RMSD_TOLERANCE = 0.05  # angstrom: fits of the core this close count as equally good
+_ENERGY_TIE = 1.0  # kcal/mol: stereoisomer poses this close in energy count as tied (a single pose is noisy)
+_OPPOSITE_FITS_BETTER = 0.15  # angstrom: how much better the inverted centre must fit to be flagged
+
+
+def _reference_stereo_atoms(ref_mol: Chem.Mol) -> set[int]:
+    """Indices of the reference's tetrahedral stereocentres, read from its 3D coordinates."""
+    reference = Chem.Mol(ref_mol)
+    Chem.AssignStereochemistryFrom3D(reference)
+    return {
+        info.centeredOn
+        for info in Chem.FindPotentialStereo(reference)
+        if info.type == Chem.StereoType.Atom_Tetrahedral and info.specified == Chem.StereoSpecified.Specified
+    }
+
+
+def _uff_energy(mol: Chem.Mol) -> float:
+    """The UFF energy of the conformer, or infinity when UFF lacks parameters for it
+    (such a variant then loses every tie to one that has an energy)."""
+    if not AllChem.UFFHasAllMoleculeParams(mol):
+        return float("inf")
+    return float(AllChem.UFFGetMoleculeForceField(mol, confId=0).CalcEnergy())
+
+
+def _embed_best_stereoisomer(
+    mol: Chem.Mol,
+    ref_mol: Chem.Mol,
+    atom_map: dict[int, int],
+    seed: int,
+    *,
+    given: dict[int, bool],
+    ref_stereo: set[int],
+    limit: int,
+) -> tuple[float, Chem.Mol, Chem.Mol, int]:
+    """Embed `mol` onto the reference with its unspecified stereo settled, as
+    `(rmsd, aligned copy, the variant it was embedded from, how many different
+    variants of the still-unspecified stereo there were)`.
+
+    Unspecified centres inside the core on an atom where the reference has a
+    stereocentre are set the way that fits the reference (lowest core RMSD).
+    Whatever is still unspecified (other centres, double bonds) is then set
+    each way and the pose with the lowest energy kept; poses within
+    `_ENERGY_TIE` of the lowest count as tied and the first of them wins, so
+    the choice does not wander with the seed when they are alike. Raises
+    ValueError if nothing embeds.
+    """
+    backed = [a for a, specified in given.items() if not specified and atom_map.get(a) in ref_stereo]
+    base, fitted = mol, None
+    if backed:
+        tags = (Chem.ChiralType.CHI_TETRAHEDRAL_CW, Chem.ChiralType.CHI_TETRAHEDRAL_CCW)
+        best = None
+        for combination in itertools.islice(itertools.product(tags, repeat=len(backed)), limit):
+            variant = Chem.Mol(mol)
+            for atom, tag in zip(backed, combination):
+                variant.GetAtomWithIdx(atom).SetChiralTag(tag)
+            trial = Chem.Mol(variant)
+            try:
+                trial_rmsd = _embed_onto_reference(trial, ref_mol, atom_map, seed)
+            except ValueError:
+                continue
+            if best is None or trial_rmsd < best[0]:
+                best = (trial_rmsd, trial, variant)
+        if best is None:
+            raise ValueError("Could not embed molecule.")
+        fitted, base = best, best[2]
+
+    options = StereoEnumerationOptions(onlyUnassigned=True, unique=True, maxIsomers=limit)
+    variants = list(EnumerateStereoisomers(base, options=options))
+    if len(variants) <= 1 and fitted is not None:
+        return (*fitted, 1)
+    posed = []
+    for variant in variants or [base]:
+        trial = Chem.Mol(variant)
+        try:
+            trial_rmsd = _embed_onto_reference(trial, ref_mol, atom_map, seed)
+        except ValueError:
+            continue
+        posed.append((_uff_energy(trial), trial_rmsd, trial, variant))
+    if not posed:
+        raise ValueError("Could not embed molecule.")
+    lowest = min(entry[0] for entry in posed)
+    _, trial_rmsd, trial, variant = next(entry for entry in posed if entry[0] <= lowest + _ENERGY_TIE)
+    return trial_rmsd, trial, variant, max(1, len(variants))
+
+
+def _stereo_report(
+    chosen: Chem.Mol, ref_mol: Chem.Mol, atom_map: dict[int, int], ref_stereo: set[int],
+    atom: int, specified: bool, rmsd: float, seed: int, free_variants: int,
+) -> StereoCenter:
+    in_core = atom in atom_map
+    backed = in_core and atom_map[atom] in ref_stereo
+    if not specified:
+        if backed:
+            resolved_by = "reference"
+        else:
+            # with one variant only, every way of setting it is the same molecule: nothing was decided
+            resolved_by = "energy" if free_variants > 1 else "equivalent"
+        return StereoCenter(atom=atom, in_core=in_core, resolved_by=resolved_by)
+    opposes = None
+    if backed:
+        inverted = Chem.Mol(chosen)
+        inverted.GetAtomWithIdx(atom).InvertChirality()
+        try:
+            opposite_rmsd = _embed_onto_reference(inverted, ref_mol, atom_map, seed)
+        except ValueError:
+            opposes = False
+        else:
+            opposes = opposite_rmsd < rmsd - _OPPOSITE_FITS_BETTER
+    return StereoCenter(atom=atom, in_core=in_core, resolved_by="analog", opposes_reference=opposes)
+
+
 def align_to_reference(
     mol: Chem.Mol, ref_mol: Chem.Mol, *, mcs: McsOptions = McsOptions(), seed: int = DEFAULT_EMBED_SEED
 ) -> CoreAlignment:
@@ -397,34 +537,52 @@ def align_to_reference(
     core = Chem.PathToSubmol(ref_mol, _bond_path_for_atoms(ref_match, ref_mol))
     logger.debug(f'Embedding analog structure with MCS constraint')
     ref_core = set(ref_match)
-    chosen = 0
-    if len(candidates) == 1:
-        atom_map = dict(zip(candidates[0], ref_match))
-        rmsd = _embed_onto_reference(mol, ref_mol, atom_map, seed)
-    else:
-        best: tuple[float, Chem.Mol, float] | None = None
-        for index, candidate in enumerate(candidates):
-            trial = Chem.Mol(mol)
-            try:
-                trial_rmsd = _embed_onto_reference(trial, ref_mol, dict(zip(candidate, ref_match)), seed)
-            except ValueError:
-                continue
-            score = _substituent_overlap(trial, set(candidate), ref_mol, ref_core)
-            # a later orientation must be clearly better to replace the first one
-            if best is None or score > best[0] + 1e-3:
-                best, chosen = (score, trial, trial_rmsd), index
-        if best is None:
-            raise ValueError("Could not embed molecule.")
-        atom_map = dict(zip(candidates[chosen], ref_match))
-        rmsd = best[2]
-        mol.RemoveAllConformers()
-        mol.AddConformer(Chem.Conformer(best[1].GetConformer()), assignId=True)
-        mol.SetProp("EmbedRMS", str(rmsd))
+    # Stereo as the analog gives it, before anything is chosen for it.
+    given = {
+        info.centeredOn: info.specified == Chem.StereoSpecified.Specified
+        for info in Chem.FindPotentialStereo(mol)
+        if info.type == Chem.StereoType.Atom_Tetrahedral
+    }
+    ref_stereo = _reference_stereo_atoms(ref_mol)
+
+    # For each orientation, the pose with its unspecified stereo settled (see
+    # `_embed_best_stereoisomer`).
+    per_orientation: list[tuple[int, float, float, Chem.Mol, Chem.Mol, int]] = []
+    for index, candidate in enumerate(candidates):
+        atom_map = dict(zip(candidate, ref_match))
+        try:
+            trial_rmsd, trial, variant, free_variants = _embed_best_stereoisomer(
+                mol, ref_mol, atom_map, seed, given=given, ref_stereo=ref_stereo, limit=max(1, mcs.max_stereoisomers)
+            )
+        except ValueError:
+            continue
+        score = _substituent_overlap(trial, set(candidate), ref_mol, ref_core) if len(candidates) > 1 else 0.0
+        per_orientation.append((index, trial_rmsd, score, trial, variant, free_variants))
+    if not per_orientation:
+        raise ValueError("Could not embed molecule.")
+
+    # Among orientations that fit the core equally well, the one whose substituents lie
+    # nearest the reference's; a later one must be clearly better than an earlier one.
+    fit = min(entry[1] for entry in per_orientation)
+    chosen, rmsd, best_score, best_trial, chosen_variant, free_variants = next(e for e in per_orientation if e[1] <= fit + _RMSD_TOLERANCE)
+    for entry in per_orientation:
+        if entry[1] <= fit + _RMSD_TOLERANCE and entry[2] > best_score + 1e-3:
+            chosen, rmsd, best_score, best_trial, chosen_variant, free_variants = entry
+    atom_map = dict(zip(candidates[chosen], ref_match))
+    mol.RemoveAllConformers()
+    mol.AddConformer(Chem.Conformer(best_trial.GetConformer()), assignId=True)
+    mol.SetProp("EmbedRMS", str(rmsd))
+    Chem.AssignStereochemistryFrom3D(mol)  # the structure now has the stereochemistry it was placed with
+
+    stereo = tuple(
+        _stereo_report(chosen_variant, ref_mol, atom_map, ref_stereo, atom, specified, rmsd, seed, free_variants)
+        for atom, specified in sorted(given.items())
+    )
     if mcs_result.canceled:
         logger.warning("The MCS search hit its %s s limit; using the best structure found.", mcs.timeout)
     return CoreAlignment(
         core=core, atom_map=atom_map, rmsd=rmsd, seed=seed, mcs_timed_out=bool(mcs_result.canceled),
-        orientations=len(candidates), orientation=chosen,
+        orientations=len(candidates), orientation=chosen, stereo=stereo,
     )
 
 
