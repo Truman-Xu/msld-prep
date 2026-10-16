@@ -350,3 +350,24 @@ def test_the_view_says_how_many_orientations_the_core_had_and_which_was_used():
     chloro, plain = session.ligand_view("chloro"), session.ligand_view("plain")
     assert chloro["orientations"] == 2 and chloro["orientation"] in (0, 1)
     assert (plain["orientations"], plain["orientation"]) == (1, 0)
+
+
+def test_the_page_is_told_about_stereo_that_needs_a_look():
+    session = AlignmentSession()
+    reference = Chem.AddHs(Chem.MolFromSmiles("C[C@H](c1ccc(Cl)cc1)C(=O)NC"))
+    Chem.rdDistGeom.EmbedMolecule(reference, randomSeed=7)
+    session.set_reference("chiral", Chem.MolToMolBlock(reference))
+    assert session.summary()["reference"]["stereocenters"] == ["R"]
+    session.set_analogs(
+        "C[C@H](c1ccc(F)cc1)C(=O)NCC same\nC[C@@H](c1ccc(F)cc1)C(=O)NCC opposite\nCC(c1ccc(F)cc1)C(=O)NCC unspecified"
+    )
+    session.align_all()
+    flags = {a["name"]: a["stereo_flag"] for a in session.summary()["analogs"]}
+    assert flags == {"same": False, "opposite": True, "unspecified": False}
+    opposite = session.ligand_view("opposite")["stereo"][0]
+    assert opposite["flag"] and "opposite" in opposite["note"]
+    assert "match the reference" in session.ligand_view("unspecified")["stereo"][0]["note"]
+
+
+def test_a_reference_without_stereocentres_says_so(session):
+    assert session.summary()["reference"]["stereocenters"] == []

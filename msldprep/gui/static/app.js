@@ -73,6 +73,7 @@ function renderState() {
     const sign = (n) => (n > 0 ? `+${n}` : String(n));
     let note = ` · ${ref.atoms} atoms (with hydrogens) · net charge ${sign(ref.net_charge)}`;
     if (ref.charged_atoms) note += ` · ${ref.charged_atoms} charged atom${ref.charged_atoms > 1 ? "s" : ""}`;
+    note += ref.stereocenters.length ? ` · stereocentres: ${ref.stereocenters.join(", ")}` : " · no stereocentres";
     $("reference-info").append(strong, note);
   }
 
@@ -92,7 +93,7 @@ function renderState() {
     badges.append(el("span", `badge ${status}`, status));
     li.append(badges);
     const meta = a.status === "aligned"
-      ? `RMSD ${a.rmsd.toFixed(3)} Å · ${a.core_atoms} core atoms · seed ${a.seed}`
+      ? `RMSD ${a.rmsd.toFixed(3)} Å · ${a.core_atoms} core atoms · seed ${a.seed}${a.stereo_flag ? " · check stereo" : ""}`
       : a.status === "failed" ? a.error : "not aligned yet";
     li.append(el("span", "meta", meta));
     li.addEventListener("click", () => guarded(() => select(a.name)));
@@ -143,6 +144,10 @@ function renderDetail() {
     add("Seed", String(view.seed));
     if (view.orientations > 1) {
       add("Orientation", `${view.orientation + 1} of ${view.orientations} equivalent ways, chosen by the overlap of substituents with the reference`);
+    }
+    for (const item of view.stereo) {
+      const row = el("dd", item.flag ? "error" : null, item.note);
+      dl.append(el("dt", null, "Stereo"), row);
     }
     if (view.mcs_timed_out) add("Core search", "hit its time limit; the best structure found is used");
     $("r-seed").value = view.seed + 1;

@@ -51,6 +51,35 @@ def _net_charge(mol: Chem.Mol) -> int:
     return sum(atom.GetFormalCharge() for atom in mol.GetAtoms())
 
 
+def _stereocenters(mol: Chem.Mol) -> list[str]:
+    """The CIP labels of a 3D molecule's stereocentres, read from its coordinates, like "R" or "S"."""
+    copy = Chem.Mol(mol)
+    Chem.AssignStereochemistryFrom3D(copy)
+    return [label for _, label in Chem.FindMolChiralCenters(copy, includeUnassigned=False, useLegacyImplementation=False)]
+
+
+def _stereo_notes(mol: Chem.Mol, alignment: CoreAlignment) -> list[dict]:
+    """One entry per stereocentre of an aligned analog worth showing, with a sentence
+    for the page and `flag` set where the user should look."""
+    notes = []
+    for center in alignment.stereo:
+        name = f"{mol.GetAtomWithIdx(center.atom).GetSymbol()}{center.atom + 1}"
+        if center.resolved_by == "equivalent":
+            continue
+        if center.resolved_by == "reference":
+            text, flag = f"{name}: not specified, set to match the reference", False
+        elif center.resolved_by == "energy":
+            reason = "the reference has no stereocentre there" if center.in_core else "outside the matched core"
+            text, flag = f"{name}: not specified ({reason}), chosen by energy; a guess, specify it to be sure", True
+        elif center.opposes_reference:
+            text, flag = f"{name}: as given, but the opposite configuration fits the reference better", True
+        else:
+            text, flag = f"{name}: as given", False
+        notes.append({"atom": name, "resolved_by": center.resolved_by, "in_core": center.in_core,
+                      "opposes_reference": center.opposes_reference, "note": text, "flag": flag})
+    return notes
+
+
 EXPORT_FORMATS = ("sdf", "mol2")
 
 
@@ -377,6 +406,7 @@ class AlignmentSession:
                     "atoms": self.reference.GetNumAtoms(),
                     "net_charge": _net_charge(self.reference),
                     "charged_atoms": sum(1 for a in self.reference.GetAtoms() if a.GetFormalCharge()),
+                    "stereocenters": _stereocenters(self.reference),
                 },
                 "params": {
                     "complete_rings_only": mcs.complete_rings_only,
@@ -397,6 +427,7 @@ class AlignmentSession:
                         "seed": e.alignment.seed if e.alignment else None,
                         "core_atoms": len(e.alignment.atom_map) if e.alignment else None,
                         "mcs_timed_out": bool(e.alignment and e.alignment.mcs_timed_out),
+                        "stereo_flag": bool(e.alignment and any(n["flag"] for n in _stereo_notes(e.mol, e.alignment))),
                     }
                     for e in self.analogs.values()
                 ],
@@ -438,6 +469,7 @@ class AlignmentSession:
                 mcs_timed_out=alignment.mcs_timed_out,
                 orientations=alignment.orientations,
                 orientation=alignment.orientation,
+                stereo=_stereo_notes(entry.mol, alignment),
                 svg=_depiction_svg(entry.mol, set(alignment.atom_map)),
                 reference_svg=_depiction_svg(self.reference, set(alignment.atom_map.values())),
             )
