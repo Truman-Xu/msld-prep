@@ -59,10 +59,12 @@ Template for a feature:
 
 | ID | Title | Kind | Status | Test |
 | --- | --- | --- | --- | --- |
-| #9 | Alignment fails with "molecule doesn't match the core" when the **reference** has a charged atom | bug | **fixed 2026-10-14**, closes with the commit that says `Closes #9` | `tests/test_align.py::test_align_to_reference_matches_atoms_whatever_their_charge` (the `xfail` marker is removed) |
-| #11 | Which symmetric match is embedded is arbitrary, so a ring can come out flipped | bug (suspected) | open, seen once, not judged | none yet: needs the rule for "better" decided first |
+| #9 | Alignment fails with "molecule doesn't match the core" when the **reference** has a charged atom | bug | **fixed 2026-10-14**, closed by `e670117` | `tests/test_align.py::test_align_to_reference_matches_atoms_whatever_their_charge` |
+| #11 | Which symmetric match is embedded is arbitrary, so a ring can come out flipped | bug | **fixed 2026-10-16**, closed by `56f697c` | `tests/test_align.py::test_a_decorated_ring_turns_its_substituent_toward_the_reference_substituent` |
+| #13 | The core search kept RDKit's 3600 s limit, so one alignment could take an hour | bug | **fixed 2026-10-16**, closed by `9002a9e` (10 s by default) | `tests/test_align.py::test_the_core_search_has_a_ten_second_limit_by_default` |
 | #1 | Reference and analog protonation states can mismatch | correctness | open, not reproduced | none yet |
-| #2 | Respect chirality of molecules through the pipeline | correctness | open, not reproduced | none yet |
+| #2 | Respect chirality of molecules through the pipeline | correctness | **partly done 2026-10-16**: alignment settles and reports stereo (`b51a361`); decomposition and the CHARMM writers were not examined, and the GUI is limited to alignment | `tests/test_align.py` (stereochemistry section) |
+| #14 | Speed up the core search for large molecules (junction tree and other ideas) | enhancement | open, **reminder for the next session** | none yet |
 
 ### #9 Matching the common structure regardless of charge
 
@@ -103,10 +105,8 @@ Template for a feature:
   fixes it (core 31 to 33 atoms). Removing charges does not (`Uncharger` leaves the N+ of an
   iminium-like ring nitrogen). Cleaning such a reference (re-assigning aromatic bond orders) is not
   planned; it matters for #1 (protonation states).
-- **Workaround:** the GUI option "Remove charges from the reference" (RDKit's `Uncharger`, as
-  in the notebook) neutralizes the reference first; with it, the first two cases above align
-  (`[ran]`). The GUI also adds a hint to the error when the reference is charged. Removing the
-  charge changes the molecule, so use it only when the analogs really are neutral.
+- **Workaround, used until the fix and removed with #12:** a GUI option "Remove charges from the
+  reference" (RDKit's `Uncharger`). It is not needed any more.
 - **Fix** (2026-10-14, `[ran]`): `align_to_reference` no longer rebuilds a core query from the
   reference and matches it again. It matches the query that `FindMCS` returned (element-only
   atoms) back onto both molecules and embeds with those atom pairs, in the helper
@@ -121,22 +121,37 @@ Template for a feature:
 - **Not checked:** the effect on the rest of the pipeline (typing, the shared core search,
   charge renormalization) when charged atoms are present at all.
 
-### #11 The symmetric match that is embedded is arbitrary
+### #11 The symmetric match that is embedded is arbitrary (fixed)
 
-- **Status:** open. GitHub issue #11, created 2026-10-14.
-- **Found:** 2026-10-14 while checking the fix for #9.
-- **What happens:** when the common structure matches a molecule in more than one way (a
-  symmetric ring, or two equivalent substituents), `GetSubstructMatch` returns the first match
-  and that one is embedded. Which one comes first is an accident of the query. Two ways of
-  building the query for the same MCS gave different atom maps for one of 34 demo analogs,
-  and the two poses differ by up to 4 angstrom in places, with the same core RMSD (0.033).
-- **Cause:** suspected, `[read]`: all matches have equal core RMSD for a symmetric core, so
-  nothing in the code prefers one.
-- **Wanted:** among the matches, embed the one that puts the atoms outside the core where the
-  reference has atoms (or the one with the least clash), or let the user flip it in the GUI.
-- **Not checked:** which of the two poses is closer to the reference's non-core atoms; whether
-  the owner's flipped-ring cases (workshop notebook, "check the ring is not flipped") are this
-  problem; how often it happens on the real series.
+- **Status:** fixed 2026-10-16 (`56f697c`, closes #11). When the core fits the analog in more than
+  one distinct way (a ring that can flip), each way is embedded and the one whose atoms outside the
+  core lie nearest the reference's atoms outside the core is kept. On the 33 public demo analogs
+  the first match had the meta-substituted aniline ring flipped for 28 (the analog's halogen
+  3 to 6 angstrom from the reference's iodine; now 0.2 to 1.2). Where the reference has nothing to
+  overlap, the first match is kept (a true symmetric structure: any match is fine, owner,
+  2026-10-16). Not decided by the pocket yet: see F-2.
+- **Not checked:** the owner's own series beyond the three analogs of `panel_a`; cores with more
+  than 32 distinct orientations (the search stops at `McsOptions.max_orientations`).
+
+### #2 Stereochemistry (partly done)
+
+- **Status:** the alignment step is done 2026-10-16 (`b51a361`, `a44e480`); the issue stays open
+  for the other stages (`decompose.py`, the writers) and because the GUI is limited to alignment.
+- **What alignment does now:** a specified centre is kept as given. An unspecified centre inside the
+  core, on an atom where the reference has a stereocentre (read from its 3D coordinates), is set the
+  way that fits the reference. Any other unspecified centre or double bond is set each way and the
+  pose with the lowest UFF energy is kept, flagged in the GUI as a guess. A specified centre whose
+  inverted configuration fits the reference clearly better is kept and flagged as opposing the
+  reference. Owner's choices, 2026-10-16.
+- **Evidence** (`[ran]`): in a toy test the unspecified centre came out R or S with the seed and now
+  always matches the reference; in the owner's `stereoisomer` set the specified cis and trans ring
+  isomers survived in every run (they already did), and the unspecified centres are settled the
+  same way (not at one seed in five, where UFF energies differ by about 8 kcal/mol from conformer
+  noise).
+- **Not checked:** stereo through the written files (sdf and mol2 carry the 3D coordinates; the
+  mol2 writer has no chirality tags), through `decompose.py` and the CHARMM writers; double-bond
+  stereo is enumerated but not reported; the energy rule uses one pose per isomer, so a close call
+  is noise.
 
 ## Planned features
 
@@ -145,7 +160,7 @@ Unordered. Nothing here is scheduled.
 | ID | Feature | Why | Depends on | Issue | Notes |
 | --- | --- | --- | --- | --- | --- |
 | F-1 | Alignment GUI, first slice | demo to the lab; check alignments by eye | none | #3 to #8 | Built 2026-10-14, see "Done"; the 3D view was checked in Firefox with software WebGL on 2026-10-14. Issues #4 and #8 were rewritten on 2026-10-14 to match what was built; #5 to #7 still describe the first plan and are partly superseded |
-| F-2 | Show the protein pocket in the GUI for clash checks | the workshop notebook asks for it | F-1 | none | load a PDB for display only |
+| F-2 | Show the protein pocket in the GUI for clash checks | the workshop notebook asks for it | F-1 | none | load a PDB for display only. **When the pocket is added, revisit how a flipped ring is decided**: today it is chosen by the overlap of the analog's substituents with the reference ligand's (#11); the owner wants the pocket's free space to decide it then (2026-10-16) |
 | F-3 | Export Sybyl-typed mol2 per analog from the GUI | what the notebook hands to CGenFF | F-1 | #7 | **Done 2026-10-14**, see "Done" |
 | F-4 | Several users or sessions on one GUI server | today one session per server (G16) | F-1 | none | needs session ids in the API |
 | F-5 | Take already-parameterized sets (mol2 + rtf + prm) in the GUI | reuse existing CGenFF output | F-1 | none | |
@@ -155,7 +170,7 @@ Unordered. Nothing here is scheduled.
 | F-9 | Compare the old and new pipelines on real MSLD runs | decide the design with evidence | learning plan, CHARMM basics from colleagues | none | |
 | F-11 | Option to keep the original atom names in the mol2 export | the owner's choice to rename is deliberate (CGenFF), but some uses need the original names | F-3 | #10 | default stays "new unique names"; refuse kept names that are duplicated or longer than four characters |
 | F-12 | Manual tuning of an aligned analog in the GUI: rotate a bond to fix a small misalignment | the constrained embed can leave a free part in a slightly wrong pose | F-1 | none yet | 3Dmol.js has no bond-rotation tool (checked 2026-10-14: no torsion or dihedral code in the bundled 2.4.2), only atom picking (`setClickable`, `setHoverable`) and `setCoordinates`. Likely design: pick a bond in the page, send it with an angle to the server, rotate the atoms on the side that holds no matched-core atom with RDKit (`rdMolTransforms`), return the new coordinates, show clashes. The core must stay fixed. Not decided |
-| F-13 | **Reminder, next session: remove the GUI option "Remove charges from the reference"** | it was a workaround for #9; since the fix charges do not matter for matching or alignment (owner, 2026-10-14), and `Uncharger` leaves a charge behind in some cases | none | #12 | the net charge of the reference stays visible in the page; what a charged reference means for MSLD is #1 |
+| F-14 | **Reminder, next session: speed up the core search for large molecules** (junction tree comparison as in Jin et al., `seedSmarts`, scaffold substructure first, caching) | aligning large molecules is slow; the MCS search is the likely cause (profile first: the orientation and stereo search embed several candidates too) | none | #14 | risks of the junction-tree idea are listed in #14: the tree is not unique, labels must not carry bond orders, atoms inside matched rings still need mapping, results may differ from `FindMCS` |
 | F-10 | Learning plan for the original `msld-py-prep` | prerequisite of the roadmap | none | none | postponed until after the GUI demo; seed in handoff Q13 |
 
 ## Deliberate behaviors
@@ -170,8 +185,15 @@ Things that look like gaps but are choices. Do not "fix" them; change them only 
   are therefore not kept. An option to keep them is F-11 (#10). The sdf export keeps the
   structure as it is and adds each analog's RMSD and seed.
 - **A realigned analog loses its accept or reject mark**, because the pose is new.
-- **The reference is used with hydrogens**: added with coordinates if the file has none, and
-  re-added after removing its charges.
+- **The reference is used with hydrogens**, added with coordinates if the file has none.
+- **A symmetric core is placed by the reference's substituents** (#11): among the equivalent ways
+  the core fits the analog, the one whose substituents lie nearest the reference's is embedded.
+  Pocket space is meant to take over this decision later (F-2).
+- **Unspecified stereo is settled, not left to chance** (#2): by the reference where it has a
+  stereocentre on the mapped atom, otherwise by energy, and the page says which ("check stereo").
+  A specified configuration is never overruled, even against the reference.
+- **The core search stops after 10 seconds by default** (#13) and uses the best structure found,
+  noted in the details.
 
 ## Open design questions
 
@@ -199,8 +221,12 @@ order with reasons, and link each to its issue.
 | --- | --- | --- |
 | 2026-10-12 | `align_to_reference` (atom map, RMSD, seed, MCS options) and the text loaders | #3, `e65a2e4`, `3d9c979` |
 | 2026-10-14 | Alignment GUI first slice: load a reference and analog SMILES, constrained embed, 3D and 2D views, accept or reject, align again with a seed, sdf download | F-1; `msldprep/gui/`, uncommitted when written |
-| 2026-10-14 | GUI option to remove charges from the reference with `Uncharger` (the notebook's step) | `msldprep/gui/service.py::neutralize` |
+| 2026-10-14 | GUI option to remove charges from the reference with `Uncharger` (the notebook's step); **removed 2026-10-16** (#12, `d013379`) because charges no longer matter for the match | `msldprep/gui/service.py::neutralize` |
 | 2026-10-14 | GUI toggle to color the reference by element; gray when off | `msldprep/gui/static/app.js` |
 | 2026-10-14 | Alignment matches by element and ignores charges and hydrogen counts; option to ignore bond orders so tautomers and protonation variants match in full (on by default in the GUI) | #9; `msldprep/align.py::align_to_reference`, `McsOptions.ignore_bond_orders` |
 | 2026-10-14 | Collapsible 2D drawing of the reference in panel 1; with an analog selected, the atoms it matched are marked | `msldprep/gui/static/app.js::renderReference2D`, `ligand_view()["reference_svg"]` |
 | 2026-10-14 | GUI download as sdf or mol2 (the notebook's Sybyl typing and mol2 writer), one file or one file per structure (zip), with or without the reference | F-3, #7; `msldprep/gui/service.py::AlignmentSession.export` |
+| 2026-10-16 | Core search limited to 10 seconds by default; the details say when the limit was hit | #13, `9002a9e` |
+| 2026-10-16 | Orientation of a symmetric core chosen by the overlap of substituents with the reference's | #11, `56f697c`, `0b6af57` |
+| 2026-10-16 | Stereo settled during alignment (by the reference, else by energy) and reported in the GUI; the reference's stereocentres shown | #2 (part), `b51a361`, `a44e480` |
+| 2026-10-16 | Issues #5, #6, #7 closed as built; GUI scope limited to structure alignment with MCS (owner) | GitHub |

@@ -127,7 +127,8 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-08 | The working env is `crimm-dev` if it satisfies every dependency of this project. It does (see section 3). | `[told]` |
 | 2026-10-12 | Project goal: a streamlined pipeline with only the inputs and outputs MSLD needs, in-memory objects for intermediate stages (fewer saved files), and a robust, user-friendly web GUI with visualization tailored to this process. | `[told]` |
 | 2026-10-12 | Working item 1: a web GUI for **only the alignment step** that `align.ipynb` runs. Runs on the cluster, reached by SSH tunnel. Stack: FastAPI backend plus small JS front end with 3Dmol.js; the later full app reuses the API. Input: reference with 3D coordinates as **mol2 or sdf** (no CRD, so no crimm hotfix) plus analog SMILES. Output: aligned sdf and one Sybyl-typed mol2 per analog. No CGenFF call in the GUI. Plan: `/home/ziqiaoxu/.claude/plans/thank-you-for-the-valiant-sonnet.md` (milestones M0 to M5); not started. | `[told]` |
-| 2026-10-14 | **Reminder for the next session: remove the GUI option "Remove charges from the reference"** (RDKit `Uncharger`). It was a workaround for #9; since that fix charges do not matter for the match or the alignment, so it serves no purpose. Tracked as #12 (F-13). Say so at the start of the next session; the owner's own words were "set up a reminder for me". Also saved in agent memory. | `[told]` |
+| 2026-10-16 | **Scope of the web GUI: structure alignment with MCS only, for now.** Also: (a) for a truly symmetric structure any match is fine; for a decorated ring the analog's substituents are oriented by the reference's substituents (done, #11), and **when protein pocket structures are brought in, the ring flip is to be decided by the pocket's vacant space: raise this then**; (b) stereochemistry: annotate the reference's stereocentres and map them onto the analogs; an unspecified centre outside the reference-backed core is chosen by energy and flagged; a specified configuration opposite to the reference is kept and flagged (done in alignment, #2); (c) **next session: work on a faster MCS for large molecules, starting from the owner's junction-tree idea (#14)**; (d) the Uncharger option is removed (done, #12); (e) `test_structures/` holds the owner's test structures and is git-ignored, never committed; (f) #5 to #7 closed as built. | `[told]` |
+| 2026-10-14 | **Reminder for the next session (DONE 2026-10-16, #12): remove the GUI option "Remove charges from the reference"** (RDKit `Uncharger`). It was a workaround for #9; since that fix charges do not matter for the match or the alignment, so it serves no purpose. Tracked as #12 (F-13). Say so at the start of the next session; the owner's own words were "set up a reminder for me". Also saved in agent memory. | `[told]` |
 | 2026-10-14 | The owner reports that different protonation states of the same ring (`c(=O)[nH]c` against `c(=O)nc`) make RDKit's substructure match treat structures as different, hurting alignment quality, and wants it resolved first: relax the match on protonation states, or log the states, match, align and put the protons back. Local files for this: `sil.mol2` (reference) and `panel_a.smi` (analogs); both belong to the unpublished series (G12). | `[told]` |
 | 2026-10-14 | The mol2 export's renaming of every atom and its missing charges are **deliberate**, because CGenFF only accepts unique short names and computes its own charges. Document it (done: README, `ISSUES_AND_PLANS.md` \"Deliberate behaviors\"), and plan an option to keep the original names (#10, F-11). Rewrite #4 and #8 to match the work (done). Push the commits (done). | `[told]` |
 | 2026-10-14 | **Every commit that finishes an issue ends its message with `Closes #N`**, on its own line above the `Co-Authored-By` trailer; a commit that only works toward an issue says `Part of #N`. Written into `CONTRIBUTING.md`. Apply it from the next commit on. | `[told]` |
@@ -210,13 +211,13 @@ Rewrite in place. True as of `2026-10-12`.
 git:
   branch: main
   remote: origin https://github.com/Truman-Xu/msld-prep.git   # public, tracking origin/main
-  commits: twenty-one (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
+  commits: thirty-one (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
            examples, environment variables for tool paths, the unpublished-structures handoff
            entry, then the push-day docs commit; on 2026-10-12 the handoff commit (crimm hotfix
            path, GUI plan, learning-plan intent), `align_to_reference` (#3) and the text loaders (#3),
            then this docs update; on 2026-10-14 four GUI commits (service #4, page #6, API #5, the
            charged-reference documentation #9), then the mol2 export (#7), the handoff update, and the 2026-10-14 documentation commits (Closes rule, deliberate behaviors and F-11, handoff), then three on the same day for #9: the matching rewrite, the GUI panel and setting, the docs
-  pushed: everything, including the three commits for #9 of 2026-10-14; each push at the owner's request (section 2)
+  pushed: through 2026-10-14 (each push at the owner's request, section 2); the commits of 2026-10-16 (#12, #13, #11, #2, test_structures) are local until the owner says to push
   branch_protection: none          # not set
 github:
   issues: ["#1 reference and analog protonation states can mismatch", "#2 respect chirality of molecules through the pipeline",
@@ -224,6 +225,7 @@ github:
            "#10 GUI option to keep the original atom names in the mol2 export (created 2026-10-14)",
            "#4 and #8 were rewritten 2026-10-14 to match what was built; #5 to #7 still describe the first plan",
            "#11 alignment embeds an arbitrary one of several equivalent symmetric matches (created 2026-10-14; was P-1 in the log entries of that day)",
+           "#12 (remove the Uncharger option), #13 (MCS time limit) and #11 (symmetric orientation) closed by commits 2026-10-16; #5 to #7 closed as built; #2 partly done (alignment only); #14 speed-up ideas open, a reminder for the next session",
            "#9 alignment fails with \"molecule doesn't match the core\" when the reference has a charged atom (created 2026-10-14; strict xfail tests)"]
   labels_created: [correctness, gui]    # on top of GitHub's defaults
   milestones: none                 # wait for ROADMAP.md
@@ -255,8 +257,8 @@ not_written_on_purpose:
   - docs/dev/ROADMAP.md
   - docs/dev/NOTES.md
   - CI workflow
-test_suite: {passed: 202, skipped: 0, date: 2026-10-14, env: crimm-dev, tool variables: set}   # 136 + 15 (M0, committed) + 26 in tests/test_gui_service.py and tests/test_gui_app.py (uncommitted)
-test_suite_without_tool_variables: {passed: 144, skipped: 58, date: 2026-10-14}
+test_suite: {passed: 218, skipped: 0, date: 2026-10-16, env: crimm-dev, tool variables: set}   # 136 + 15 (M0, committed) + 26 in tests/test_gui_service.py and tests/test_gui_app.py (uncommitted)
+test_suite_without_tool_variables: {passed: 160, skipped: 58, date: 2026-10-16}   # counted as 218 minus the 58 tool tests, not run
 env: crimm-dev                     # no separate env file
 crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul
 directory: /home/ziqiaoxu/msld-prep   # /home/ziqiaoxu/msld-prep-tools is a symlink to it (G11)
@@ -313,6 +315,34 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-16 claude-sonnet/claude-code/orientation-stereo-limit
+
+- asked: remove the Uncharger option; close #5 to #7; limit the GUI to alignment with MCS; choose the
+  orientation of symmetric rings by the reference's substituents (#11); ensure stereochemistry from the
+  reference (#2, using `test_structures/stereoisomer`); git-ignore `test_structures/`; later in the turn: the
+  junction-tree idea for a faster MCS, and notes for the pocket and for next session.
+- did (commits, none pushed): `.gitignore` for `test_structures/` (also in `.git/info/exclude`);
+  `d013379` removes the Uncharger option (`Closes #12`); `9002a9e` default MCS limit of 10 s and
+  `mcs_timed_out` (`Closes #13`, found when a pair of two-piperidine molecules ran for minutes);
+  `56f697c` orientation search by substituent overlap (`Closes #11`), `0b6af57` GUI note;
+  `b51a361` stereo settled during alignment and reported, `a44e480` GUI display (`Part of #2`). Closed #5,
+  #6, #7 as built, with comments. Filed #13, #14. Reminders: #14 and memory notes. `[ran]`
+- verified `[ran]`: 218 passed with the tool variables set; the demo series (33 analogs): for 28 the first
+  match had the aniline ring flipped (halogen 3 to 6 A from the reference iodine), now 0.2 to 1.2 A;
+  toy stereo cases (same, opposite, unspecified, over four seeds); the owner's stereoisomer analogs; the
+  page's stereo notes in Firefox with WebGL, no JavaScript errors.
+- found: `FindMCS` can run for an hour on pairs of large molecules (#13, #14); the owner's reference has no
+  stereocentre, so its unspecified centres fall to the energy rule, which is noisy (one seed in five
+  flips because UFF energies differ by about 8 kcal/mol between poses); `RenumberAtoms` leaves ring info
+  uninitialized, which broke `GetSubstructMatches` (fixed with `GetSymmSSSR`); the node here is too old
+  for `node --check` on the page's script (`??`), so use the browser.
+- not verified: stereo through `decompose.py` and the writers (#2 stays open); the owner's series beyond
+  the three `panel_a` analogs; the speed of aligning large series (orientation and stereo search embed
+  several candidates per analog: 4.6 s for 34 demo analogs).
+- next: (1) **#14: faster MCS for large molecules, junction-tree idea (the owner's reminder)**; profile
+  first; (2) push the commits if the owner agrees; (3) decide whether #2 is narrowed to alignment or
+  continues into the writers.
 
 ### 2026-10-14 claude-sonnet/claude-code/day-end-wrapup
 
