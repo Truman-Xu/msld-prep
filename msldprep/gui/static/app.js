@@ -141,6 +141,9 @@ function renderDetail() {
     add("RMSD of core", `${view.rmsd.toFixed(3)} Å`);
     add("Core atoms", String(view.core_atoms.length));
     add("Seed", String(view.seed));
+    if (view.orientations > 1) {
+      add("Orientation", `${view.orientation + 1} of ${view.orientations} equivalent ways, chosen by the overlap of substituents with the reference`);
+    }
     if (view.mcs_timed_out) add("Core search", "hit its time limit; the best structure found is used");
     $("r-seed").value = view.seed + 1;
   }

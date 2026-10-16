@@ -338,3 +338,15 @@ def test_tautomers_of_the_reference_align_in_full_with_the_default_settings():
     session.set_params(ignore_bond_orders=False)
     session.align_all()
     assert session.summary()["analogs"][0]["core_atoms"] == 10
+
+
+def test_the_view_says_how_many_orientations_the_core_had_and_which_was_used():
+    session = AlignmentSession()
+    reference = Chem.AddHs(Chem.MolFromSmiles("COc1ccccc1CC(=O)O"))
+    Chem.rdDistGeom.EmbedMolecule(reference, randomSeed=5)
+    session.set_reference("ortho", Chem.MolToMolBlock(reference))
+    session.set_analogs("Clc1ccccc1CC(=O)O chloro\nc1ccccc1CC(=O)O plain")
+    session.align_all()
+    chloro, plain = session.ligand_view("chloro"), session.ligand_view("plain")
+    assert chloro["orientations"] == 2 and chloro["orientation"] in (0, 1)
+    assert (plain["orientations"], plain["orientation"]) == (1, 0)

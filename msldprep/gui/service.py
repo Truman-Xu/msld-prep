@@ -436,6 +436,8 @@ class AlignmentSession:
                 rmsd=alignment.rmsd,
                 seed=alignment.seed,
                 mcs_timed_out=alignment.mcs_timed_out,
+                orientations=alignment.orientations,
+                orientation=alignment.orientation,
                 svg=_depiction_svg(entry.mol, set(alignment.atom_map)),
                 reference_svg=_depiction_svg(self.reference, set(alignment.atom_map.values())),
             )
