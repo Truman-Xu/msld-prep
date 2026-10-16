@@ -8,6 +8,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Sequence
 
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdMolAlign
 from rdkit.Chem.rdFMCS import AtomCompare, BondCompare, FindMCS
@@ -241,6 +242,9 @@ class McsOptions:
     ring_matches_ring_only: bool = False
     timeout: int | None = 10
     ignore_bond_orders: bool = False
+    # How many distinct ways the core may sit on a symmetric part of the analog
+    # (a ring that can flip) to try; 1 uses the first match only.
+    max_orientations: int = 32
 
 
 @dataclass
@@ -259,6 +263,8 @@ class CoreAlignment:
     rmsd: float
     seed: int
     mcs_timed_out: bool = False  # the core is the best found within the time limit, not proven largest
+    orientations: int = 1  # distinct ways the core fits the analog, up to `McsOptions.max_orientations`
+    orientation: int = 0  # index of the one used
 
 
 def _embed_onto_reference(mol: Chem.Mol, ref_mol: Chem.Mol, atom_map: dict[int, int], seed: int) -> float:
@@ -295,6 +301,49 @@ def _embed_onto_reference(mol: Chem.Mol, ref_mol: Chem.Mol, atom_map: dict[int, 
     return rmsd
 
 
+_MAX_MATCHES = 1000  # cap on the substructure matches enumerated for one analog
+_OVERLAP_SIGMA = 1.0  # angstrom: width of the overlap score between substituents
+
+
+def _distinct_orientations(mol: Chem.Mol, query: Chem.Mol, ref_match: Sequence[int], limit: int) -> list[tuple[int, ...]]:
+    """The ways `query` fits `mol`, one per distinct placement, the first match
+    RDKit finds first. Two matches that only exchange atoms `mol` treats alike
+    (the two ortho carbons of an unsubstituted phenyl, say) give the same
+    structure and count once; matches that differ where `mol` is not
+    symmetric (a ring with a substituent) are kept apart.
+    """
+    # The query's ring-bond tests need ring information, which a molecule built by
+    # RenumberAtoms or edited by hand may lack; computing it again changes nothing else.
+    Chem.GetSymmSSSR(mol)
+    first = mol.GetSubstructMatch(query)
+    ranks = list(Chem.CanonicalRankAtoms(mol, breakTies=False))
+    found: list[tuple[int, ...]] = []
+    seen: set[frozenset[tuple[int, int]]] = set()
+    for match in (first, *mol.GetSubstructMatches(query, uniquify=False, maxMatches=_MAX_MATCHES)):
+        signature = frozenset((ranks[a], r) for a, r in zip(match, ref_match))
+        if signature in seen:
+            continue
+        seen.add(signature)
+        found.append(tuple(match))
+        if len(found) >= limit:
+            break
+    return found
+
+
+def _substituent_overlap(mol: Chem.Mol, core_atoms: set[int], ref_mol: Chem.Mol, ref_core_atoms: set[int]) -> float:
+    """How well the heavy atoms of `mol` outside the core sit on the heavy atoms of
+    the reference outside the core (a sum of Gaussians of their distances; higher
+    is better). Zero when either side has none."""
+    free = [a.GetIdx() for a in mol.GetAtoms() if a.GetAtomicNum() > 1 and a.GetIdx() not in core_atoms]
+    ref_free = [a.GetIdx() for a in ref_mol.GetAtoms() if a.GetAtomicNum() > 1 and a.GetIdx() not in ref_core_atoms]
+    if not free or not ref_free:
+        return 0.0
+    xyz = mol.GetConformer().GetPositions()[free]
+    ref_xyz = ref_mol.GetConformer().GetPositions()[ref_free]
+    squared = ((xyz[:, None, :] - ref_xyz[None, :, :]) ** 2).sum(axis=-1)
+    return float(np.exp(-squared / (2 * _OVERLAP_SIGMA**2)).sum())
+
+
 def align_to_reference(
     mol: Chem.Mol, ref_mol: Chem.Mol, *, mcs: McsOptions = McsOptions(), seed: int = DEFAULT_EMBED_SEED
 ) -> CoreAlignment:
@@ -303,9 +352,15 @@ def align_to_reference(
     The core is their maximum common substructure by element (see
     `McsOptions`), so differing charges or hydrogen counts do not matter.
     Mutates `mol` in place (adds/replaces its conformer). The same inputs
-    and `seed` give the same conformer. Where the core matches a molecule in
-    more than one way (a symmetric group), the first match RDKit returns is
-    the one embedded and reported in `atom_map`.
+    and `seed` give the same conformer.
+
+    Where the core fits the analog in more than one distinct way (a ring that
+    can flip), each way is embedded and the one whose atoms outside the core
+    lie closest to the reference's atoms outside the core is kept, so a
+    decorated ring turns its substituents toward the reference's. Where that
+    makes no difference (the reference has nothing there), the first match
+    RDKit returns is used. `orientations` and `orientation` in the result say
+    how many ways there were and which one was kept.
     """
     logger.debug(f'Searching for maximum common structure')
     # FindMCS on explicit-H mols is combinatorially explosive (many
@@ -334,18 +389,43 @@ def align_to_reference(
     # The MCS query has heavy atoms only, so it matches the molecules with
     # their hydrogens too, and the indices it returns are indices in them.
     ref_match = ref_mol.GetSubstructMatch(mcs_result.queryMol)
-    mol_match = mol.GetSubstructMatch(mcs_result.queryMol)
-    if not ref_match or not mol_match:
+    candidates = _distinct_orientations(mol, mcs_result.queryMol, ref_match, max(1, mcs.max_orientations)) if ref_match else []
+    if not ref_match or not candidates or not candidates[0]:
         msg = "The common substructure found by FindMCS could not be matched back onto the molecules."
         logger.error(msg)
         raise ValueError(msg)
-    atom_map = dict(zip(mol_match, ref_match))
     core = Chem.PathToSubmol(ref_mol, _bond_path_for_atoms(ref_match, ref_mol))
     logger.debug(f'Embedding analog structure with MCS constraint')
-    rmsd = _embed_onto_reference(mol, ref_mol, atom_map, seed)
+    ref_core = set(ref_match)
+    chosen = 0
+    if len(candidates) == 1:
+        atom_map = dict(zip(candidates[0], ref_match))
+        rmsd = _embed_onto_reference(mol, ref_mol, atom_map, seed)
+    else:
+        best: tuple[float, Chem.Mol, float] | None = None
+        for index, candidate in enumerate(candidates):
+            trial = Chem.Mol(mol)
+            try:
+                trial_rmsd = _embed_onto_reference(trial, ref_mol, dict(zip(candidate, ref_match)), seed)
+            except ValueError:
+                continue
+            score = _substituent_overlap(trial, set(candidate), ref_mol, ref_core)
+            # a later orientation must be clearly better to replace the first one
+            if best is None or score > best[0] + 1e-3:
+                best, chosen = (score, trial, trial_rmsd), index
+        if best is None:
+            raise ValueError("Could not embed molecule.")
+        atom_map = dict(zip(candidates[chosen], ref_match))
+        rmsd = best[2]
+        mol.RemoveAllConformers()
+        mol.AddConformer(Chem.Conformer(best[1].GetConformer()), assignId=True)
+        mol.SetProp("EmbedRMS", str(rmsd))
     if mcs_result.canceled:
         logger.warning("The MCS search hit its %s s limit; using the best structure found.", mcs.timeout)
-    return CoreAlignment(core=core, atom_map=atom_map, rmsd=rmsd, seed=seed, mcs_timed_out=bool(mcs_result.canceled))
+    return CoreAlignment(
+        core=core, atom_map=atom_map, rmsd=rmsd, seed=seed, mcs_timed_out=bool(mcs_result.canceled),
+        orientations=len(candidates), orientation=chosen,
+    )
 
 
 def align_common_core(mol: Chem.Mol, ref_mol: Chem.Mol, *, complete_rings_only: bool = True) -> Chem.Mol:

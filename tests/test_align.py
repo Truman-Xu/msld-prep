@@ -347,3 +347,59 @@ def test_a_search_that_hit_its_limit_is_flagged_in_the_result(monkeypatch):
     _spy_on_find_mcs(monkeypatch, canceled=True)
     result = align.align_to_reference(_embedded("Oc1ncnc2ccccc12"), _embedded("O=c1[nH]cnc2ccccc12"))
     assert result.mcs_timed_out is True and result.atom_map
+
+
+# --- which equivalent orientation is embedded (#11) --------------------------------------------
+
+_ORTHO_REFERENCE = "COc1ccccc1CC(=O)O"  # a methoxy group next to the acetic acid chain
+_ORTHO_ANALOG = "Clc1ccccc1CC(=O)O"  # a chlorine in its place; the ring can sit either way round
+
+
+def _shuffled(smiles: str, seed: int) -> Chem.Mol:
+    """The molecule with its atoms in another order, so the first substructure match varies."""
+    import random
+
+    mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
+    order = list(range(mol.GetNumAtoms()))
+    random.Random(seed).shuffle(order)
+    return Chem.RenumberAtoms(mol, order)
+
+
+def _distance_from_chlorine_to_the_reference_oxygen(analog: Chem.Mol, reference: Chem.Mol) -> float:
+    chlorine = next(a.GetIdx() for a in analog.GetAtoms() if a.GetSymbol() == "Cl")
+    ether_oxygen = next(a.GetIdx() for a in reference.GetAtoms() if a.GetSymbol() == "O" and a.GetDegree() == 2 and not a.GetIsAromatic())
+    delta = analog.GetConformer().GetPositions()[chlorine] - reference.GetConformer().GetPositions()[ether_oxygen]
+    return float((delta**2).sum() ** 0.5)
+
+
+def test_a_decorated_ring_turns_its_substituent_toward_the_reference_substituent():
+    reference = _embedded(_ORTHO_REFERENCE)
+    kept, first_match_only = [], []
+    for seed in range(12):
+        analog = _shuffled(_ORTHO_ANALOG, seed)
+        result = align.align_to_reference(analog, Chem.Mol(reference))
+        assert result.orientations == 2
+        kept.append(_distance_from_chlorine_to_the_reference_oxygen(analog, reference))
+        analog = _shuffled(_ORTHO_ANALOG, seed)
+        align.align_to_reference(analog, Chem.Mol(reference), mcs=align.McsOptions(max_orientations=1))
+        first_match_only.append(_distance_from_chlorine_to_the_reference_oxygen(analog, reference))
+    assert max(kept) < 1.0  # on top of the reference's substituent, whatever the atom order
+    assert max(first_match_only) > 3.0  # the first match alone gets it wrong for some atom orders
+
+
+def test_an_unsubstituted_ring_has_one_orientation():
+    result = align.align_to_reference(_embedded("c1ccccc1CC(=O)O"), _embedded(_ORTHO_REFERENCE))
+    assert (result.orientations, result.orientation) == (1, 0)
+
+
+def test_the_first_match_is_kept_when_the_reference_has_nothing_to_overlap():
+    # the analog's ring can sit two ways, but the reference has no substituent to prefer either
+    result = align.align_to_reference(_embedded(_ORTHO_ANALOG), _embedded("c1ccccc1CC(=O)O"))
+    assert result.orientations == 2 and result.orientation == 0
+
+
+def test_one_orientation_can_be_asked_for():
+    result = align.align_to_reference(
+        _embedded(_ORTHO_ANALOG), _embedded(_ORTHO_REFERENCE), mcs=align.McsOptions(max_orientations=1)
+    )
+    assert result.orientations == 1
