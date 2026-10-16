@@ -72,7 +72,6 @@ function renderState() {
     const strong = el("strong", null, ref.name);
     const sign = (n) => (n > 0 ? `+${n}` : String(n));
     let note = ` · ${ref.atoms} atoms (with hydrogens) · net charge ${sign(ref.net_charge)}`;
-    if (ref.loaded_net_charge !== ref.net_charge) note += ` (file: ${sign(ref.loaded_net_charge)})`;
     if (ref.charged_atoms) note += ` · ${ref.charged_atoms} charged atom${ref.charged_atoms > 1 ? "s" : ""}`;
     $("reference-info").append(strong, note);
   }
@@ -121,7 +120,6 @@ function syncParams() {
   $("p-anybond").checked = p.ignore_bond_orders;
   $("p-timeout").value = p.timeout;
   $("p-seed").value = p.seed;
-  $("neutralize").checked = state.neutralize_reference;
   $("t-color").checked = colorReference;
 }
 
@@ -398,24 +396,6 @@ $("t-color").addEventListener("change", (e) => {
   saveSetting("colorReference", colorReference ? "1" : "0");
   draw();
 });
-$("neutralize").addEventListener("change", (e) => guarded(async () => {
-  const wanted = e.target.checked;
-  try {
-    state = await api("/api/reference/neutralize", { method: "PUT", body: { neutralize: wanted } });
-  } catch (err) {
-    e.target.checked = !wanted;
-    throw err;
-  }
-  view = null; selected = null; overlay = null;
-  if (state.reference) {
-    refView = await api("/api/reference");
-    const ref = state.reference;
-    say(wanted
-      ? `Charges removed from the reference: net charge ${ref.loaded_net_charge} to ${ref.net_charge}. Align again.`
-      : "Reference charges kept as in the file. Align again.");
-  }
-  renderState(); renderDetail(); draw();
-}));
 $("t-overlay").addEventListener("change", () => guarded(async () => { await ensureOverlay(); draw(); }));
 $("t-reset").addEventListener("click", () => { needZoom = true; draw(); });
 $("reset").addEventListener("click", () => guarded(async () => {

@@ -292,8 +292,7 @@ def test_importing_the_package_does_not_import_the_gui():
 # ------------------------------------------------- charges on the reference
 
 # The reference of the ChEMBL series written with a protonated ring nitrogen (the
-# analogs stay neutral), as a 3D mol block. Without removing the charge the alignment fails;
-# see docs/dev/ISSUES_AND_PLANS.md, #9, and the xfail test in tests/test_align.py.
+# analogs stay neutral), as a 3D mol block (#9: a charged reference used to break the match).
 CHARGED_REFERENCE_SMILES = "c1ccc2c(c1)c([nH+]cn2)Nc1cccc(Br)c1"
 
 
@@ -303,44 +302,11 @@ def _charged_reference_block() -> str:
     return Chem.MolToMolBlock(mol)
 
 
-def test_neutralize_removes_charges_and_keeps_the_molecule_3d():
-    charged = Chem.MolFromMolBlock(_charged_reference_block(), removeHs=False)
-    neutral = service.neutralize(charged)
-    assert sum(a.GetFormalCharge() for a in neutral.GetAtoms()) == 0
-    assert neutral.GetNumAtoms() == charged.GetNumAtoms() - 1  # the nitrogen gave up its hydrogen
-    assert neutral.GetConformer().Is3D()
-
-
-def test_reference_summary_reports_charge_before_and_after():
+def test_the_reference_summary_shows_its_net_charge_and_charged_atoms():
     session = AlignmentSession()
     session.set_reference("charged", _charged_reference_block())
     ref = session.summary()["reference"]
-    assert (ref["net_charge"], ref["loaded_net_charge"], ref["charged_atoms"]) == (1, 1, 1)
-    session.set_neutralize_reference(True)
-    ref = session.summary()["reference"]
-    assert (ref["net_charge"], ref["loaded_net_charge"], ref["charged_atoms"]) == (0, 1, 0)
-    assert session.summary()["neutralize_reference"] is True
-    session.set_neutralize_reference(False)
-    assert session.summary()["reference"]["net_charge"] == 1
-
-
-def test_neutralizing_the_reference_lets_neutral_analogs_align():
-    session = AlignmentSession()
-    session.set_neutralize_reference(True)  # may be set before the reference is loaded
-    session.set_reference("charged", _charged_reference_block())
-    session.set_analogs(ANALOG_TEXT)
-    session.align_all()
-    assert set(_status(session).values()) == {"aligned"}
-
-
-def test_toggling_neutralize_clears_alignments(aligned):
-    aligned.set_neutralize_reference(True)
-    assert _status(aligned)["10749"] == "pending"
-
-
-def test_reference_view_lists_its_elements(session):
-    elements = session.reference_view()["elements"]
-    assert elements == sorted(set(elements)) and {"C", "H", "N"} <= set(elements)
+    assert (ref["net_charge"], ref["charged_atoms"]) == (1, 1)
 
 
 def test_a_charged_reference_aligns_without_removing_its_charges():

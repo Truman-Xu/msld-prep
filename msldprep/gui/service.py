@@ -20,7 +20,6 @@ from typing import Callable
 
 from rdkit import Chem, rdBase
 from rdkit.Chem import rdDepictor
-from rdkit.Chem.MolStandardize import rdMolStandardize
 from rdkit.Chem.Draw import rdMolDraw2D
 
 from ..align import (
@@ -50,20 +49,6 @@ class SessionError(MsldPrepError):
 
 def _net_charge(mol: Chem.Mol) -> int:
     return sum(atom.GetFormalCharge() for atom in mol.GetAtoms())
-
-
-def neutralize(mol: Chem.Mol) -> Chem.Mol:
-    """`mol` with its charges removed by RDKit's `Uncharger`, as the notebook
-    does for its reference. Hydrogens are taken off for the neutralization (a
-    protonated nitrogen must lose its hydrogen atom, not just its charge) and
-    put back with coordinates afterwards, so a 3D molecule stays 3D.
-    """
-    try:
-        plain = Chem.RemoveHs(mol)
-        uncharged = rdMolStandardize.Uncharger().uncharge(plain)
-        return Chem.AddHs(uncharged, addCoords=True)
-    except Exception as exc:  # RDKit's errors here are not a documented, closed set
-        raise AlignmentError(f"Could not remove the charges from the reference: {exc!r}") from exc
 
 
 EXPORT_FORMATS = ("sdf", "mol2")
@@ -221,10 +206,8 @@ class AlignmentSession:
 
     def reset(self) -> None:
         with self._lock:
-            self.reference: Chem.Mol | None = None  # as used: neutralized if asked, with hydrogens
-            self.reference_loaded: Chem.Mol | None = None  # as read from the file
+            self.reference: Chem.Mol | None = None  # with hydrogens
             self.reference_name: str | None = None
-            self.neutralize_reference = False
             self.analogs: dict[str, AnalogEntry] = {}
             self.params = AlignParams()
             self.job = JobState()
@@ -252,26 +235,10 @@ class AlignmentSession:
             mol = mol_from_sdf_text(text)
         with self._lock:
             self._require_idle()
-            self.reference_loaded = mol
+            self.reference = Chem.AddHs(mol, addCoords=True)
             self.reference_name = _clean_name(name)
-            self._rebuild_reference()
-
-    def set_neutralize_reference(self, neutralize: bool) -> None:
-        """Remove (or keep) the charges of the reference, as the notebook does with
-        `Uncharger`. Works before a reference is loaded too; it then applies to
-        the next one. Earlier alignments no longer fit the changed reference and
-        are cleared."""
-        with self._lock:
-            self._require_idle()
-            self.neutralize_reference = bool(neutralize)
-            if self.reference_loaded is not None:
-                self._rebuild_reference()
-
-    def _rebuild_reference(self) -> None:
-        loaded = self.reference_loaded
-        self.reference = neutralize(loaded) if self.neutralize_reference else Chem.AddHs(loaded, addCoords=True)
-        for entry in self.analogs.values():
-            self._clear_alignment(entry)
+            for entry in self.analogs.values():
+                self._clear_alignment(entry)
 
     def set_analogs(self, text: str) -> list[AnalogRow]:
         rows = parse_analog_table(text)
@@ -409,10 +376,8 @@ class AlignmentSession:
                     "name": self.reference_name,
                     "atoms": self.reference.GetNumAtoms(),
                     "net_charge": _net_charge(self.reference),
-                    "loaded_net_charge": _net_charge(self.reference_loaded),
                     "charged_atoms": sum(1 for a in self.reference.GetAtoms() if a.GetFormalCharge()),
                 },
-                "neutralize_reference": self.neutralize_reference,
                 "params": {
                     "complete_rings_only": mcs.complete_rings_only,
                     "ring_matches_ring_only": mcs.ring_matches_ring_only,

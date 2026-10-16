@@ -93,17 +93,6 @@ def test_start_over(client):
     assert state["reference"] is None
 
 
-def test_neutralizing_the_reference_through_the_api(client):
-    from .test_gui_service import _charged_reference_block
-
-    client.put("/api/reference", json={"name": "charged", "text": _charged_reference_block()})
-    assert client.get("/api/state").json()["reference"]["net_charge"] == 1
-    state = client.put("/api/reference/neutralize", json={"neutralize": True}).json()
-    assert state["neutralize_reference"] is True and state["reference"]["net_charge"] == 0
-    assert "N" in client.get("/api/reference").json()["elements"]
-    assert client.put("/api/reference/neutralize", json={}).status_code == 422
-
-
 def test_the_matching_settings_round_trip_through_the_api(client):
     assert client.get("/api/state").json()["params"]["ignore_bond_orders"] is True
     state = client.put("/api/params", json={"ignore_bond_orders": False, "ring_matches_ring_only": True}).json()

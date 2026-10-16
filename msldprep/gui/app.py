@@ -32,10 +32,6 @@ class ReferenceIn(BaseModel):
     text: str = Field(max_length=MAX_TEXT)
 
 
-class NeutralizeIn(BaseModel):
-    neutralize: bool
-
-
 class AnalogsIn(BaseModel):
     text: str = Field(max_length=MAX_TEXT)
 
@@ -83,11 +79,6 @@ def create_app(token: str, session: AlignmentSession | None = None) -> FastAPI:
     @app.put("/api/reference", dependencies=auth)
     def put_reference(body: ReferenceIn) -> dict:
         session.set_reference(body.name, body.text)
-        return session.summary()
-
-    @app.put("/api/reference/neutralize", dependencies=auth)
-    def put_neutralize(body: NeutralizeIn) -> dict:
-        session.set_neutralize_reference(body.neutralize)
         return session.summary()
 
     @app.get("/api/reference", dependencies=auth)
