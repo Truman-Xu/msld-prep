@@ -369,5 +369,5 @@ def test_the_page_is_told_about_stereo_that_needs_a_look():
     assert "match the reference" in session.ligand_view("unspecified")["stereo"][0]["note"]
 
 
-def test_a_reference_without_stereocentres_says_so(session):
+def test_a_reference_without_stereocenters_says_so(session):
     assert session.summary()["reference"]["stereocenters"] == []

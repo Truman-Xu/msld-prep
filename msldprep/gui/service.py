@@ -52,14 +52,14 @@ def _net_charge(mol: Chem.Mol) -> int:
 
 
 def _stereocenters(mol: Chem.Mol) -> list[str]:
-    """The CIP labels of a 3D molecule's stereocentres, read from its coordinates, like "R" or "S"."""
+    """The CIP labels of a 3D molecule's stereocenters, read from its coordinates, like "R" or "S"."""
     copy = Chem.Mol(mol)
     Chem.AssignStereochemistryFrom3D(copy)
     return [label for _, label in Chem.FindMolChiralCenters(copy, includeUnassigned=False, useLegacyImplementation=False)]
 
 
 def _stereo_notes(mol: Chem.Mol, alignment: CoreAlignment) -> list[dict]:
-    """One entry per stereocentre of an aligned analog worth showing, with a sentence
+    """One entry per stereocenter of an aligned analog worth showing, with a sentence
     for the page and `flag` set where the user should look."""
     notes = []
     for center in alignment.stereo:
@@ -69,7 +69,7 @@ def _stereo_notes(mol: Chem.Mol, alignment: CoreAlignment) -> list[dict]:
         if center.resolved_by == "reference":
             text, flag = f"{name}: not specified, set to match the reference", False
         elif center.resolved_by == "energy":
-            reason = "the reference has no stereocentre there" if center.in_core else "outside the matched core"
+            reason = "the reference has no stereocenter there" if center.in_core else "outside the matched core"
             text, flag = f"{name}: not specified ({reason}), chosen by energy; a guess, specify it to be sure", True
         elif center.opposes_reference:
             text, flag = f"{name}: as given, but the opposite configuration fits the reference better", True

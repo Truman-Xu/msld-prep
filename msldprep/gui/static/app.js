@@ -73,7 +73,7 @@ function renderState() {
     const sign = (n) => (n > 0 ? `+${n}` : String(n));
     let note = ` · ${ref.atoms} atoms (with hydrogens) · net charge ${sign(ref.net_charge)}`;
     if (ref.charged_atoms) note += ` · ${ref.charged_atoms} charged atom${ref.charged_atoms > 1 ? "s" : ""}`;
-    note += ref.stereocenters.length ? ` · stereocentres: ${ref.stereocenters.join(", ")}` : " · no stereocentres";
+    note += ref.stereocenters.length ? ` · stereocenters: ${ref.stereocenters.join(", ")}` : " · no stereocenters";
     $("reference-info").append(strong, note);
   }
 
