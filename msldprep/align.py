@@ -296,35 +296,86 @@ class CoreAlignment:
     stereo: tuple[StereoCenter, ...] = ()
 
 
+def _specified_stereo(mol: Chem.Mol) -> dict[tuple[int, int], tuple]:
+    """The specified stereo elements of `mol`, keyed by kind and atom or bond, with
+    their descriptor relative to their controlling atoms."""
+    return {
+        (int(info.type), info.centeredOn): (info.descriptor, tuple(info.controllingAtoms))
+        for info in Chem.FindPotentialStereo(mol)
+        if info.specified == Chem.StereoSpecified.Specified
+    }
+
+
+def _keeps_stereo(wanted: dict[tuple[int, int], tuple], mol: Chem.Mol) -> bool:
+    """Whether the 3D structure of `mol` has every stereo element in `wanted`."""
+    placed = Chem.Mol(mol)
+    Chem.AssignStereochemistryFrom3D(placed)
+    found = _specified_stereo(placed)
+    return all(found.get(key) == value for key, value in wanted.items())
+
+
 def _embed_onto_reference(mol: Chem.Mol, ref_mol: Chem.Mol, atom_map: dict[int, int], seed: int) -> float:
     """Embed `mol` with the atoms in `atom_map` (index in `mol` to index in
     `ref_mol`) placed on the reference's positions, optimize it with those
-    atoms tethered there, and fit it onto them. Returns the RMSD of the
-    mapped atoms. Mutates `mol`.
+    atoms held there, and fit it onto them. Returns the RMSD of the mapped
+    atoms. Mutates `mol`.
 
     Adapted from RDKit's `AllChem.ConstrainedEmbed` (BSD-3-Clause, with
     `useTethers=True`): the same steps, but the atom pairs come from the MCS
     that was already found rather than from matching a core query again,
     which would require the charges and bond orders of the reference to
     match exactly.
+
+    The first attempt embeds from random coordinates, then puts the core atoms
+    exactly on the reference's positions and keeps them fixed while the rest is
+    optimized, so the core has the reference's geometry, ring puckers included.
+    A fixed core can force a stereocentre of the analog into the opposite
+    configuration when the analog specifies the opposite of the reference; the
+    pose is then rejected, and the core is held by a stiff tether instead, and
+    if that does not embed, by RDKit's default start and soft tether, which let
+    the core give way a little (a higher RMSD, which is how such a conflict is
+    recognized). The first pose with the analog's stereochemistry is kept, or
+    the last one if none has it.
     """
     ref_conf = ref_mol.GetConformer()
     pairs = list(atom_map.items())
     coord_map = {i: ref_conf.GetAtomPosition(j) for i, j in pairs}
-    if AllChem.EmbedMolecule(mol, coordMap=coord_map, randomSeed=seed) < 0:
-        raise ValueError("Could not embed molecule.")
-    rdMolAlign.AlignMol(mol, ref_mol, atomMap=pairs)
-    ff = AllChem.UFFGetMoleculeForceField(mol, confId=0)
-    for i, j in pairs:
-        point = ref_conf.GetAtomPosition(j)
-        extra = ff.AddExtraPoint(point.x, point.y, point.z, fixed=True) - 1
-        ff.AddDistanceConstraint(extra, i, 0, 0, 100.0)
-    ff.Initialize()
-    remaining = 4
-    more = ff.Minimize(energyTol=1e-4, forceTol=1e-3)
-    while more and remaining:
+    wanted = _specified_stereo(mol)
+    starts: dict[bool, Chem.Mol | None] = {}
+    pose = None
+    for random_start, force in _EMBED_ATTEMPTS:
+        if random_start not in starts:
+            start = Chem.Mol(mol)
+            embedded = AllChem.EmbedMolecule(start, coordMap=coord_map, randomSeed=seed, useRandomCoords=random_start) >= 0
+            starts[random_start] = start if embedded else None
+        if starts[random_start] is None:
+            continue
+        pose = Chem.Mol(starts[random_start])
+        rdMolAlign.AlignMol(pose, ref_mol, atomMap=pairs)
+        if force is None:
+            conf = pose.GetConformer()
+            for i, j in pairs:
+                conf.SetAtomPosition(i, ref_conf.GetAtomPosition(j))
+        ff = AllChem.UFFGetMoleculeForceField(pose, confId=0)
+        for i, j in pairs:
+            if force is None:
+                ff.AddFixedPoint(i)
+            else:
+                point = ref_conf.GetAtomPosition(j)
+                extra = ff.AddExtraPoint(point.x, point.y, point.z, fixed=True) - 1
+                ff.AddDistanceConstraint(extra, i, 0, 0, force)
+        ff.Initialize()
+        remaining = 4
         more = ff.Minimize(energyTol=1e-4, forceTol=1e-3)
-        remaining -= 1
+        while more and remaining:
+            more = ff.Minimize(energyTol=1e-4, forceTol=1e-3)
+            remaining -= 1
+        if _keeps_stereo(wanted, pose):
+            break
+    if pose is None:
+        raise ValueError("Could not embed molecule.")
+    mol.RemoveAllConformers()
+    mol.AddConformer(Chem.Conformer(pose.GetConformer()), assignId=True)
     rmsd = rdMolAlign.AlignMol(mol, ref_mol, atomMap=pairs)
     mol.SetProp("EmbedRMS", str(rmsd))
     return rmsd
@@ -373,6 +424,11 @@ def _substituent_overlap(mol: Chem.Mol, core_atoms: set[int], ref_mol: Chem.Mol,
     return float(np.exp(-squared / (2 * _OVERLAP_SIGMA**2)).sum())
 
 
+_TETHER_FORCE = 1000.0  # kcal/mol/angstrom^2 holding the core on the reference during cleanup
+_SOFT_TETHER_FORCE = 100.0  # the softer tether of the last attempt (RDKit's ConstrainedEmbed value)
+# How `_embed_onto_reference` tries to place the analog, in order: whether the embedding
+# starts from random coordinates, and the force holding the core (None: the core is fixed).
+_EMBED_ATTEMPTS = ((True, None), (True, _TETHER_FORCE), (False, _SOFT_TETHER_FORCE))
 _RMSD_TOLERANCE = 0.05  # angstrom: fits of the core this close count as equally good
 _ENERGY_TIE = 1.0  # kcal/mol: stereoisomer poses this close in energy count as tied (a single pose is noisy)
 _OPPOSITE_FITS_BETTER = 0.15  # angstrom: how much better the inverted centre must fit to be flagged

@@ -279,6 +279,37 @@ def test_align_to_reference_matches_atoms_whatever_their_charge(reference_smiles
     assert result.atom_map
 
 
+def _largest_ring_torsion_difference(analog: Chem.Mol, reference: Chem.Mol, atom_map: dict[int, int]) -> float:
+    """Degrees: the largest difference between a torsion of a non-aromatic ring of
+    the reference and the same torsion of the analog."""
+    from rdkit.Chem import rdMolTransforms
+
+    def torsions(conf, ring):
+        n = len(ring)
+        return [rdMolTransforms.GetDihedralDeg(conf, *(ring[(k + d) % n] for d in range(4))) for k in range(n)]
+
+    to_analog = {r: a for a, r in atom_map.items()}
+    largest = 0.0
+    for ring in Chem.GetSymmSSSR(reference):
+        ring = list(ring)
+        if any(reference.GetAtomWithIdx(i).GetIsAromatic() for i in ring):
+            continue
+        pairs = zip(torsions(reference.GetConformer(), ring), torsions(analog.GetConformer(), [to_analog[i] for i in ring]))
+        largest = max([largest, *(abs((r - a + 180) % 360 - 180) for r, a in pairs)])
+    return largest
+
+
+@pytest.mark.parametrize("seed", [2342, 1, 2, 3, 4])
+def test_the_core_keeps_the_reference_geometry_ring_puckers_included(seed):
+    # Embedding from RDKit's default start with a soft tether left these chairs twisted
+    # or inverted (up to 92 degrees off, depending on the seed).
+    reference = _embedded("CN1CCC(CC1)C1CCN(C)CC1")
+    analog = Chem.AddHs(Chem.MolFromSmiles("CCN1CCC(CC1)C1CCN(CC)CC1"))
+    result = align.align_to_reference(analog, Chem.Mol(reference), seed=seed)
+    assert result.rmsd < 1e-3
+    assert _largest_ring_torsion_difference(analog, reference, result.atom_map) < 1.0
+
+
 def test_a_charged_analog_aligns_onto_a_neutral_reference():
     # the other direction of #9, which always worked
     result = align.align_to_reference(
@@ -440,6 +471,17 @@ def test_the_opposite_configuration_is_kept_but_flagged_as_opposing_the_referenc
     assert _stereo_smiles_from_3d(analog) == Chem.MolToSmiles(Chem.MolFromSmiles(_OPPOSITE))  # not overruled
     (center,) = result.stereo
     assert center.opposes_reference is True
+
+
+def test_only_a_configuration_that_fits_the_reference_core_sits_on_it_exactly():
+    # A core fixed on the reference would invert the opposite centre, so that analog
+    # is placed with the core held less strictly instead and keeps its configuration.
+    reference = _embedded(_STEREO_REFERENCE)
+    _, same = _aligned(_SAME, reference)
+    opposite_analog, opposite = _aligned(_OPPOSITE, reference)
+    assert same.rmsd < 1e-3
+    assert opposite.rmsd > 0.1
+    assert _stereo_smiles_from_3d(opposite_analog) == Chem.MolToSmiles(Chem.MolFromSmiles(_OPPOSITE))
 
 
 @pytest.mark.parametrize("seed", [2342, 1, 2, 3])
