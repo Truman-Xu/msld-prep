@@ -127,9 +127,10 @@ Follow these unless the owner says otherwise in your own session.
 | 2026-10-08 | The working env is `crimm-dev` if it satisfies every dependency of this project. It does (see section 3). | `[told]` |
 | 2026-10-12 | Project goal: a streamlined pipeline with only the inputs and outputs MSLD needs, in-memory objects for intermediate stages (fewer saved files), and a robust, user-friendly web GUI with visualization tailored to this process. | `[told]` |
 | 2026-10-12 | Working item 1: a web GUI for **only the alignment step** that `align.ipynb` runs. Runs on the cluster, reached by SSH tunnel. Stack: FastAPI backend plus small JS front end with 3Dmol.js; the later full app reuses the API. Input: reference with 3D coordinates as **mol2 or sdf** (no CRD, so no crimm hotfix) plus analog SMILES. Output: aligned sdf and one Sybyl-typed mol2 per analog. No CGenFF call in the GUI. Plan: `/home/ziqiaoxu/.claude/plans/thank-you-for-the-valiant-sonnet.md` (milestones M0 to M5); not started. | `[told]` |
-| 2026-10-16 | **Scope of the web GUI: structure alignment with MCS only, for now.** Also: (a) for a truly symmetric structure any match is fine; for a decorated ring the analog's substituents are oriented by the reference's substituents (done, #11), and **when protein pocket structures are brought in, the ring flip is to be decided by the pocket's vacant space: raise this then**; (b) stereochemistry: annotate the reference's stereocentres and map them onto the analogs; an unspecified centre outside the reference-backed core is chosen by energy and flagged; a specified configuration opposite to the reference is kept and flagged (done in alignment, #2); (c) **next session: work on a faster MCS for large molecules, starting from the owner's junction-tree idea (#14)**; (d) the Uncharger option is removed (done, #12); (e) `test_structures/` holds the owner's test structures and is git-ignored, never committed; (f) #5 to #7 closed as built. | `[told]` |
+| 2026-10-16 | **Scope of the web GUI: structure alignment with MCS only, for now.** Also: (a) for a truly symmetric structure any match is fine; for a decorated ring the analog's substituents are oriented by the reference's substituents (done, #11), and **when protein pocket structures are brought in, the ring flip is to be decided by the pocket's vacant space: raise this then**; (b) stereochemistry: annotate the reference's stereocentres and map them onto the analogs; an unspecified centre outside the reference-backed core is chosen by energy and flagged; a specified configuration opposite to the reference is kept and flagged (done in alignment, #2); (c) a faster MCS for large molecules, starting from the owner's junction-tree idea (#14); **updated at the day's end: the owner decides on Monday 2026-10-19 whether to work on it, so ask then rather than start it**; (d) the Uncharger option is removed (done, #12); (e) `test_structures/` holds the owner's test structures and is git-ignored, never committed; (f) #5 to #7 closed as built. | `[told]` |
 | 2026-10-16 | **The web GUI uses American English** in all text it shows (page, notes and messages from `msldprep/gui/`): "stereocenter", "center", "color", "behavior". Applied the same day. | `[told]` |
 | 2026-10-16 | Commit and push all of the day's work (this permission covers that push only). | `[told]` |
+| 2026-10-16 | **Push to GitHub over SSH** from now on: `git push git@github.com:Truman-Xu/msld-prep.git main`, or `origin` once it points there (`git remote set-url origin git@github.com:Truman-Xu/msld-prep.git`, offered, not done). Pushing still needs the owner's say-so each session. See section 3. | `[told]` |
 | 2026-10-14 | **Reminder for the next session (DONE 2026-10-16, #12): remove the GUI option "Remove charges from the reference"** (RDKit `Uncharger`). It was a workaround for #9; since that fix charges do not matter for the match or the alignment, so it serves no purpose. Tracked as #12 (F-13). Say so at the start of the next session; the owner's own words were "set up a reminder for me". Also saved in agent memory. | `[told]` |
 | 2026-10-14 | The owner reports that different protonation states of the same ring (`c(=O)[nH]c` against `c(=O)nc`) make RDKit's substructure match treat structures as different, hurting alignment quality, and wants it resolved first: relax the match on protonation states, or log the states, match, align and put the protons back. Local files for this: `sil.mol2` (reference) and `panel_a.smi` (analogs); both belong to the unpublished series (G12). | `[told]` |
 | 2026-10-14 | The mol2 export's renaming of every atom and its missing charges are **deliberate**, because CGenFF only accepts unique short names and computes its own charges. Document it (done: README, `ISSUES_AND_PLANS.md` \"Deliberate behaviors\"), and plan an option to keep the original names (#10, F-11). Rewrite #4 and #8 to match the work (done). Push the commits (done). | `[told]` |
@@ -166,7 +167,7 @@ specific to it.
 | The suite also passes, 136 passed, against the latest PyPI crimm (2026.2.2, wheel installed with `--no-deps` into a scratch directory and put first on `PYTHONPATH`). | `[ran 2026-10-08]` |
 | Tools are found through environment variables, else `PATH`: `MSLDPREP_CGENFF_PATH` (program), `MSLDPREP_CGENFF_BASE_PRM` (base prm; default `par_all36_cgenff.prm` beside the program; the root script and tests use that default, the CLI omits `-p` if unset), `MSLDPREP_OBABEL_PATH` (obabel). With none found, 5 CGenFF tests and 53 OpenBabel tests skip. Installs that work here: `/export/apps/RockyOS8/cgenff/src/2026_May/silcsbio.2026.1/cgenff/cgenff` and `/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel`; crimm's handoff names a different CGenFF (`.../src/2026/silcsbio.2026.1-alpha/...`). `obabel` is not on `PATH` in a non-activated shell. | `[ran 2026-10-08]` |
 | `tests/test_writers.py::test_downstream_msld_prm_contract` imports `msld_prm` from `/home/ziqiaoxu/msld-py-prep` and runs it. | `[read]`, `[ran]` passes |
-| A plain `git push` fails here: the remote is https, there is no credential helper and no display for askpass. Worked, without changing any git config: `git -c credential.helper= -c "credential.helper=!/home/ziqiaoxu/.conda/envs/crimm-dev/bin/gh auth git-credential" push origin main`, with `GIT_TERMINAL_PROMPT=0`. Check `git push --dry-run` first (G14). | `[ran 2026-10-12]` |
+| SUPERSEDED 2026-10-16 by the owner's rule to push over SSH: `ssh -T git@github.com` authenticates as `Truman-Xu` with `~/.ssh/id_rsa`, and `git push git@github.com:Truman-Xu/msld-prep.git main` worked (from the agent's shell only with the sandbox disabled, since it needs the network). Old text: a plain `git push` fails here: the remote is https, there is no credential helper and no display for askpass. Worked, without changing any git config: `git -c credential.helper= -c "credential.helper=!/home/ziqiaoxu/.conda/envs/crimm-dev/bin/gh auth git-credential" push origin main`, with `GIT_TERMINAL_PROMPT=0`. Check `git push --dry-run` first (G14). | `[ran 2026-10-12]`, `[ran 2026-10-16]` |
 | Branch `main`, tracking `origin/main` (`https://github.com/Truman-Xu/msld-prep.git`, **public**, issues enabled), pushed 2026-10-08. `gh` is at `/home/ziqiaoxu/.conda/envs/crimm-dev/bin/gh`, logged in as `Truman-Xu` (scopes `repo`, `read:org`, `admin:public_key`, `gist`). `gh` is not on `PATH`. | `[ran 2026-10-08]` |
 
 Commands that work `[ran 2026-10-08]`:
@@ -192,6 +193,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G16 | The GUI runs one in-memory `AlignmentSession` per server, so two people on one server share and overwrite each other's work. The access token is the only protection, and the login node is shared: do not leave a server running with a guessable token (I tested with `demo123` and stopped it). The default port is a free one picked at start, because 8765 was already taken by another user's server on 2026-10-14. | `[ran 2026-10-14]` |
 | G17 | An agent cannot see the 3D view here: headless Firefox 140 on this node has no WebGL even with software-GL preferences (`webgl: False`), so `draw()` in `static/app.js` was **not** run in a browser. What was run in a real browser (Firefox through Marionette on port 2828, a throwaway profile): the whole page flow (load, align, select, accept, align again, download link) with no JavaScript errors, and 3Dmol's per-atom selection by `serial` (29 atoms, 17 core, 0 mismatches). To drive a headless browser from here, speak the Marionette protocol directly; there is no selenium or playwright. `pkill -f <pattern>` matches the agent's own shell command and kills it; use `pgrep`, then `kill <pid>`. | `[ran 2026-10-14]` |
 | G17a | SUPERSEDES G17's "no WebGL" for this node, `[ran 2026-10-14]`: WebGL works in Firefox 140 with Mesa's software renderer (`llvmpipe`) on a virtual display. Nothing was installed: `/usr/bin/Xvnc` and Mesa's `swrast_dri.so` are system packages. Recipe: `Xvnc :77 -geometry 1500x1000 -depth 24 -rfbport -1 -nolisten tcp -SecurityTypes None -rfbunixpath <scratch>/vnc.sock &`, then `DISPLAY=:77 LIBGL_ALWAYS_SOFTWARE=1 firefox --marionette --no-remote --profile <throwaway profile> about:blank &`, with these in the profile's `user.js`: `webgl.force-enabled` true, `webgl.disabled` false, `layers.acceleration.disabled` true, `webgl.forbid-software` false, `webgl.disable-angle` false. Headless mode (`MOZ_HEADLESS`) did not get WebGL; software-WebRender prefs crashed Firefox. Drive it with `scratchpad`-style Marionette code (G17); `TakeScreenshot` then shows the 3D view. **Stop Firefox (Marionette listens on 127.0.0.1:2828) and Xvnc when done**: other users of the login node can reach loopback ports and the X socket. Kill by pid (`pgrep -x firefox`, `pgrep -x Xvnc`), not `pkill -f`. | `[ran 2026-10-14]` |
+| G18 | To check how Safari's engine behaves, use WebKitGTK 2.54, which is installed with Python bindings for the system Python: `/usr/bin/python3` with `gi.require_version('WebKit2', '4.0')`, a `WebKit2.WebView` in a `Gtk.Window` on the Xvnc display (G17a), `run_javascript` to read the page (it cannot return a Promise: store the result in `window` and read it in a second call), and `get_snapshot` for a picture (WebGL works). `document.elementFromPoint` can miss an overlap that Safari has: WebKitGTK drew the hidden file inputs 1 px wide, so measure the boxes of the elements as well. Stop Xvnc afterwards. | `[ran 2026-10-16]` |
 | G15 | **No longer true for alignment since 2026-10-14** (`align_to_reference` matches by element and ignores isotope labels); still true for anything that matches a query built from labeled atoms. Original text: `align.prepare_ligand_set` / `assign_isotope_labels` set isotope labels on the **reference** `Mol` too. A labeled reference no longer matches an unlabeled analog, so `align_common_core` / `align_to_reference` then raise `ValueError: molecule doesn't match the core`. Align before labeling, or use a freshly loaded reference (the new tests do). The session-scoped `reference_ligand` fixture in `tests/conftest.py` is labeled once `prepared_ligand_set` has run. The GUI must use a copy and never label. | `[ran 2026-10-12]` |
 | G4 | Aligned ligands are stored as one sdf, not per-ligand mol2, because RDKit's mol2 reader sometimes fails to re-kekulize an aromatic ring. Atom names ride in the `AtomNames` data field. | `[read align.py]` |
 | G5 | CGenFF atom types are carried on RDKit atoms as the `CGENFFAtomType` property and grouped via isotope labels starting at 300 (`align.py`). Do not use isotopes for anything else in this package. | `[read]` |
@@ -207,19 +209,21 @@ Things that cost a previous agent time or would produce wrong results silently.
 
 ## 5. State
 
-Rewrite in place. True as of `2026-10-12`.
+Rewrite in place. True as of `2026-10-16` (end of day), except where a line says otherwise.
 
 ```yaml
 git:
   branch: main
-  remote: origin https://github.com/Truman-Xu/msld-prep.git   # public, tracking origin/main
+  remote: origin https://github.com/Truman-Xu/msld-prep.git   # public, tracking origin/main; push over SSH instead (section 2, 2026-10-16)
+  commits_total: 37 on 2026-10-16 (git rev-list --count HEAD); the list below is the history up to 2026-10-14
   commits: thirty-one (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
            examples, environment variables for tool paths, the unpublished-structures handoff
            entry, then the push-day docs commit; on 2026-10-12 the handoff commit (crimm hotfix
            path, GUI plan, learning-plan intent), `align_to_reference` (#3) and the text loaders (#3),
            then this docs update; on 2026-10-14 four GUI commits (service #4, page #6, API #5, the
            charged-reference documentation #9), then the mol2 export (#7), the handoff update, and the 2026-10-14 documentation commits (Closes rule, deliberate behaviors and F-11, handoff), then three on the same day for #9: the matching rewrite, the GUI panel and setting, the docs
-  pushed: through 2026-10-14 (each push at the owner's request, section 2); the commits of 2026-10-16 (#12, #13, #11, #2, test_structures) are local until the owner says to push
+  pushed: everything, through the 2026-10-16 wrap-up docs commit (each push at the owner's request, section 2); main is level with origin/main
+  commits_2026-10-16: test_structures ignored; #12 Uncharger removed; #13 MCS limit; #11 orientation (+ GUI note); #2 stereo in alignment (+ GUI) and the exact core placement f43e56d; GUI --reload, deselect, file-input scroll fix, American spelling; docs
   branch_protection: none          # not set
 github:
   issues: ["#1 reference and analog protonation states can mismatch", "#2 respect chirality of molecules through the pipeline",
@@ -227,15 +231,17 @@ github:
            "#10 GUI option to keep the original atom names in the mol2 export (created 2026-10-14)",
            "#4 and #8 were rewritten 2026-10-14 to match what was built; #5 to #7 still describe the first plan",
            "#11 alignment embeds an arbitrary one of several equivalent symmetric matches (created 2026-10-14; was P-1 in the log entries of that day)",
-           "#12 (remove the Uncharger option), #13 (MCS time limit) and #11 (symmetric orientation) closed by commits 2026-10-16; #5 to #7 closed as built; #2 partly done (alignment only); #14 speed-up ideas open, a reminder for the next session",
-           "#9 alignment fails with \"molecule doesn't match the core\" when the reference has a charged atom (created 2026-10-14; strict xfail tests)"]
+           "#12 (remove the Uncharger option), #13 (MCS time limit) and #11 (symmetric orientation) closed by commits 2026-10-16; #5 to #7 closed as built; #2 partly done (alignment only); #14 speed-up ideas open, the owner decides on 2026-10-19 whether to work on it",
+           "#9 alignment fails with \"molecule doesn't match the core\" when the reference has a charged atom (created 2026-10-14; closed by e670117 the same day)"]
+  open_issues_2026-10-16: ["#1", "#2", "#8", "#10", "#14"]
   labels_created: [correctness, gui]    # on top of GitHub's defaults
   milestones: none                 # wait for ROADMAP.md
 tracked:
   - AGENTS.md, CLAUDE.md, CONTRIBUTING.md, README.md, LICENSE (GPLv3, copied from crimm's)
   - pyproject.toml, .gitignore, .github/
   - docs/dev/AGENT_HANDOFF.md, docs/dev/BEST_PRACTICES.md
-  - msldprep/, tests/, scripts/, data/, configs/, examples/2_ChEMBL, examples/gui_demo   # msldprep/gui/ and examples/gui_demo are new and uncommitted as of 2026-10-14
+  - msldprep/, tests/, scripts/, data/, configs/, examples/2_ChEMBL, examples/gui_demo   # msldprep/gui/ included, committed since 2026-10-14
+  - docs/dev/ISSUES_AND_PLANS.md
   - msld_prep_cli.py, run_msld_prep.py, run_msld_prep_from_smiles.py
 excluded_locally_unpublished_series:   # .git/info/exclude; never commit (G12)
   - align.ipynb                    # the original, byte-identical to what the owner had (sha1 blob 9674a79)
@@ -259,12 +265,12 @@ not_written_on_purpose:
   - docs/dev/ROADMAP.md
   - docs/dev/NOTES.md
   - CI workflow
-test_suite: {passed: 218, skipped: 0, date: 2026-10-16, env: crimm-dev, tool variables: set}   # 136 + 15 (M0, committed) + 26 in tests/test_gui_service.py and tests/test_gui_app.py (uncommitted)
-test_suite_without_tool_variables: {passed: 160, skipped: 58, date: 2026-10-16}   # counted as 218 minus the 58 tool tests, not run
+test_suite: {passed: 218, skipped: 0, date: 2026-10-16, env: crimm-dev, tool variables: set}   # before the frozen-core change f43e56d; NOT rerun with the tool variables since
+test_suite_without_tool_variables: {passed: 168, skipped: 58, date: 2026-10-16, run: after f1f9edd}
 env: crimm-dev                     # no separate env file
 crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul
 directory: /home/ziqiaoxu/msld-prep   # /home/ziqiaoxu/msld-prep-tools is a symlink to it (G11)
-library_code_changed_by_agents: none   # msldprep/ untouched
+library_code_changed_by_agents: since 2026-10-12, msldprep/align.py (align_to_reference, McsOptions, orientation, stereo, exact core placement) and the new msldprep/gui/; see the log
 code_changed_by_agents_2026-10-08:
   - tests/test_analog_prep.py, tests/test_sybyl_typer.py (tool paths from environment)
   - msld_prep_cli.py (cgenff defaults from environment), run_msld_prep_from_smiles.py,
@@ -317,6 +323,22 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-16 claude-opus/claude-code/day-end-wrapup
+
+- asked: update all the docs, commit and push; push over SSH from now on. `[told 2026-10-16]`
+- owner checked `[told 2026-10-16]`: the new alignment (exact core placement) and `--reload` both work
+  well, and all drop-down toggles behave correctly in Safari, so the entries below are confirmed.
+- did: section 2 rows (SSH push rule, American English, today's push), section 3 push fact superseded,
+  G18 (WebKitGTK as a Safari check), section 5 brought to today; `ISSUES_AND_PLANS.md`: #2 core geometry,
+  deliberate behaviors, F-14 status, the done table. Comments on GitHub issues #2 (core geometry) and #8
+  (`--reload` in the README). Agent memory: SSH push rule, Monday reminder.
+- verified `[ran]`: before the docs commit, nothing unpushed, no other branches, no claims; 168 passed,
+  58 skipped without the tool variables.
+- not verified: the 58 CGenFF- and OpenBabel-backed tests after `f43e56d`.
+- next (Monday 2026-10-19): (1) ask the owner whether to work on #14 (faster MCS; profile first);
+  (2) run the full suite with the tool variables set, telling the owner first (login node);
+  (3) offer `git remote set-url origin git@github.com:Truman-Xu/msld-prep.git` again if `origin` is still https.
 
 ### 2026-10-16 claude-opus/claude-code/gui-reload-deselect-summary
 

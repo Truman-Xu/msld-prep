@@ -63,8 +63,8 @@ Template for a feature:
 | #11 | Which symmetric match is embedded is arbitrary, so a ring can come out flipped | bug | **fixed 2026-10-16**, closed by `56f697c` | `tests/test_align.py::test_a_decorated_ring_turns_its_substituent_toward_the_reference_substituent` |
 | #13 | The core search kept RDKit's 3600 s limit, so one alignment could take an hour | bug | **fixed 2026-10-16**, closed by `9002a9e` (10 s by default) | `tests/test_align.py::test_the_core_search_has_a_ten_second_limit_by_default` |
 | #1 | Reference and analog protonation states can mismatch | correctness | open, not reproduced | none yet |
-| #2 | Respect chirality of molecules through the pipeline | correctness | **partly done 2026-10-16**: alignment settles and reports stereo (`b51a361`); decomposition and the CHARMM writers were not examined, and the GUI is limited to alignment | `tests/test_align.py` (stereochemistry section) |
-| #14 | Speed up the core search for large molecules (junction tree and other ideas) | enhancement | open, **reminder for the next session** | none yet |
+| #2 | Respect chirality of molecules through the pipeline | correctness | **partly done 2026-10-16**: alignment settles and reports stereo (`b51a361`) and puts the core exactly on the reference, falling back when that would invert a centre (`f43e56d`); decomposition and the CHARMM writers were not examined, and the GUI is limited to alignment | `tests/test_align.py` (stereochemistry section, `test_the_core_keeps_the_reference_geometry_ring_puckers_included`) |
+| #14 | Speed up the core search for large molecules (junction tree and other ideas) | enhancement | open; the owner decides on Monday 2026-10-19 whether to work on it next | none yet |
 
 ### #9 Matching the common structure regardless of charge
 
@@ -143,6 +143,16 @@ Template for a feature:
   pose with the lowest UFF energy is kept, flagged in the GUI as a guess. A specified centre whose
   inverted configuration fits the reference clearly better is kept and flagged as opposing the
   reference. Owner's choices, 2026-10-16.
+- **Core geometry** (`f43e56d`, 2026-10-16): the owner saw the reference's piperidine chairs come
+  out inverted or twisted in the analogs. That is a conformation, not a configuration (the
+  reference has no stereocentre there), so chirality tags could not fix it; the cause was RDKit's
+  default embedding with a coordinate map, which started the core about 1 angstrom off, and the
+  soft tether, which could not flip a ring back. The core atoms are now put exactly on the
+  reference's positions and kept fixed while the rest is optimized. When that would invert a centre
+  the analog specifies (the opposite configuration to the reference), the pose is rejected and the
+  core is held by a stiff tether, then by RDKit's default start and soft tether, so the analog keeps
+  its configuration and is flagged. On the owner's 22 analogs: core RMSD 0.000 and no ring torsion
+  off (before: 15 had a ring more than 30 degrees off). Checked by the owner in the GUI.
 - **Evidence** (`[ran]`): in a toy test the unspecified centre came out R or S with the seed and now
   always matches the reference; in the owner's `stereoisomer` set the specified cis and trans ring
   isomers survived in every run (they already did), and the unspecified centres are settled the
@@ -170,7 +180,7 @@ Unordered. Nothing here is scheduled.
 | F-9 | Compare the old and new pipelines on real MSLD runs | decide the design with evidence | learning plan, CHARMM basics from colleagues | none | |
 | F-11 | Option to keep the original atom names in the mol2 export | the owner's choice to rename is deliberate (CGenFF), but some uses need the original names | F-3 | #10 | default stays "new unique names"; refuse kept names that are duplicated or longer than four characters |
 | F-12 | Manual tuning of an aligned analog in the GUI: rotate a bond to fix a small misalignment | the constrained embed can leave a free part in a slightly wrong pose | F-1 | none yet | 3Dmol.js has no bond-rotation tool (checked 2026-10-14: no torsion or dihedral code in the bundled 2.4.2), only atom picking (`setClickable`, `setHoverable`) and `setCoordinates`. Likely design: pick a bond in the page, send it with an angle to the server, rotate the atoms on the side that holds no matched-core atom with RDKit (`rdMolTransforms`), return the new coordinates, show clashes. The core must stay fixed. Not decided |
-| F-14 | **Reminder, next session: speed up the core search for large molecules** (junction tree comparison as in Jin et al., `seedSmarts`, scaffold substructure first, caching) | aligning large molecules is slow; the MCS search is the likely cause (profile first: the orientation and stereo search embed several candidates too) | none | #14 | risks of the junction-tree idea are listed in #14: the tree is not unique, labels must not carry bond orders, atoms inside matched rings still need mapping, results may differ from `FindMCS` |
+| F-14 | **Speed up the core search for large molecules; the owner decides on Monday 2026-10-19 whether to take it on next** (junction tree comparison as in Jin et al., `seedSmarts`, scaffold substructure first, caching) | aligning large molecules is slow; the MCS search is the likely cause (profile first: the orientation and stereo search embed several candidates too) | none | #14 | risks of the junction-tree idea are listed in #14: the tree is not unique, labels must not carry bond orders, atoms inside matched rings still need mapping, results may differ from `FindMCS` |
 | F-10 | Learning plan for the original `msld-py-prep` | prerequisite of the roadmap | none | none | postponed until after the GUI demo; seed in handoff Q13 |
 
 ## Deliberate behaviors
@@ -194,6 +204,10 @@ Things that look like gaps but are choices. Do not "fix" them; change them only 
   A specified configuration is never overruled, even against the reference.
 - **The core search stops after 10 seconds by default** (#13) and uses the best structure found,
   noted in the details.
+- **The core sits exactly on the reference** (#2, `f43e56d`), so the RMSD of the core is 0.000 for
+  almost every analog. A non-zero RMSD means a fallback was needed, in practice a stereocentre whose
+  configuration conflicts with the reference's.
+- **The GUI's text is in American English** (owner, 2026-10-16): "stereocenter", "color".
 
 ## Open design questions
 
@@ -230,3 +244,8 @@ order with reasons, and link each to its issue.
 | 2026-10-16 | Orientation of a symmetric core chosen by the overlap of substituents with the reference's | #11, `56f697c`, `0b6af57` |
 | 2026-10-16 | Stereo settled during alignment (by the reference, else by energy) and reported in the GUI; the reference's stereocentres shown | #2 (part), `b51a361`, `a44e480` |
 | 2026-10-16 | Issues #5, #6, #7 closed as built; GUI scope limited to structure alignment with MCS (owner) | GitHub |
+| 2026-10-16 | Core placed exactly on the reference so rings keep its puckers, with a fallback that keeps an opposite configuration | #2 (part), `f43e56d` |
+| 2026-10-16 | `python -m msldprep.gui --reload` for development; page files served with `no-cache`, so edits show on a refresh | `decffa7` |
+| 2026-10-16 | A second click on the selected analog deselects it (reference alone in the view) | `3a38fac` |
+| 2026-10-16 | Hidden file inputs kept inside their buttons; they had covered the "Settings" and "2D structure" toggles in Safari when the left panel scrolled | `af93fd5` |
+| 2026-10-16 | GUI text in American English ("stereocenter") | `f1f9edd` |
