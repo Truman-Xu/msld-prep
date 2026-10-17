@@ -96,9 +96,9 @@ function renderState() {
       ? `RMSD ${a.rmsd.toFixed(3)} Å · ${a.core_atoms} core atoms · seed ${a.seed}${a.stereo_flag ? " · check stereo" : ""}`
       : a.status === "failed" ? a.error : "not aligned yet";
     li.append(el("span", "meta", meta));
-    li.addEventListener("click", () => guarded(() => select(a.name)));
+    li.addEventListener("click", () => guarded(() => toggle(a.name)));
     li.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); guarded(() => select(a.name)); }
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); guarded(() => toggle(a.name)); }
     });
     list.append(li);
   }
@@ -299,6 +299,16 @@ async function refreshState() {
 async function select(name) {
   selected = name;
   view = await api(`/api/analogs/${encodeURIComponent(name)}`);
+  renderState();
+  renderDetail();
+  draw();
+}
+
+// Clicking the selected analog again deselects it, leaving the reference alone in the view.
+async function toggle(name) {
+  if (name !== selected) return select(name);
+  selected = null;
+  view = null;
   renderState();
   renderDetail();
   draw();
