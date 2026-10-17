@@ -316,6 +316,50 @@ Newest first. Append only. Template:
 - next:
 ```
 
+### 2026-10-16 claude-opus/claude-code/gui-reload-deselect-summary
+
+- asked: (1) see GUI changes without restarting the server; (2) in Safari the "Settings" summary of
+  panel 3 opened only when clicked to the right of its text; (3) a second click on the selected analog
+  deselects it, leaving the reference alone in the 3D view. `[told 2026-10-16]`
+- did (uncommitted): `python -m msldprep.gui --reload` (uvicorn reload with a factory,
+  `create_app_from_env`, token handed over in `MSLDPREP_GUI_TOKEN`, not on the command line, which other
+  users can read); `/static/` answers with `Cache-Control: no-cache` so edited scripts show on a refresh;
+  `toggle()` in `app.js`; `summary` gets `user-select: none` and padding. README updated. Two tests.
+- verified `[ran]`: GUI tests 41 passed; with `--reload`, touching `service.py` restarted the server on the
+  same port and token; in WebKitGTK 2.54 (Safari's engine, `/usr/bin/python3` with `gi`, on Xvnc `:77`)
+  clicking the selected analog again clears the details and leaves only the reference in the view
+  (snapshot), arrow keys still select.
+- then: the owner confirmed "Settings" works in Safari but found the same on "2D structure" and that it
+  depends on scrolling. Cause `[ran]`: the hidden file inputs (`label.file input`, `position: absolute`)
+  had the page body as their containing block, so they stayed put while the left panel scrolled and lay
+  over whatever scrolled under them (the reference's input sits on the "2D structure" row at about 70 px
+  of scroll). Fixed with `label.file { position: relative }`; measured in WebKitGTK, the inputs now move
+  with their buttons. Not yet checked by the owner in Safari.
+- found: WebKitGTK through PyGObject is a usable headless check of WebKit behaviour here, besides Firefox;
+  `elementFromPoint` alone missed this bug because WebKitGTK draws the inputs 1 px wide.
+
+### 2026-10-16 claude-opus/claude-code/frozen-core-embedding
+
+- asked: the owner saw in the GUI that the analogs' piperidine rings did not keep the reference's
+  geometry (entries 1 and 3 of `test_structures/stereoisomer`), and chose "B with fallback": put the core on
+  the reference's coordinates, keep it fixed, embed and optimize the rest. `[told 2026-10-16]`
+- did (uncommitted): `_embed_onto_reference` tries, in order, a fixed core on the reference's positions
+  (random start), a stiff tether (k 1000, random start), then RDKit's default start with the soft tether
+  (k 100); the first pose whose 3D stereo matches what the analog was given is kept (`_keeps_stereo`).
+  Tests: ring torsions of a 4,4'-bipiperidine toy over five seeds; the same versus opposite configuration.
+- found `[ran]`: not a stereo problem. The reference has no RDKit stereocentre; the rings came out as
+  inverted or twisted chairs (a conformation), because the default `coordMap` embed started the core
+  about 1.2 A off (2.8 A max) and the k 100 tether could not flip it back. Annotating chirality cannot
+  tell a chair from its inverted chair.
+- verified `[ran]`: 166 passed, 58 skipped (tool variables not set; the CGenFF-backed run was not done on
+  the login node); the owner's 22 analogs that finish the MCS within 4 s: core RMSD 0.000 for all, no
+  ring torsion off (before: 15 of 22 more than 30 degrees off), the fixed-core pose kept for every one; the
+  toy opposite-configuration analog falls back (RMSD 0.24), keeps its configuration and is flagged.
+- not verified: the tests with `MSLDPREP_CGENFF_PATH` and `MSLDPREP_OBABEL_PATH` set; the GUI in a browser
+  after this change. A pose that no attempt can give the right stereo is still kept (the last attempt),
+  as before, with no flag.
+- next: the owner reviews; commit (`Part of #2`) when asked; then the items of the entry below.
+
 ### 2026-10-16 claude-sonnet/claude-code/orientation-stereo-limit
 
 - asked: remove the Uncharger option; close #5 to #7; limit the GUI to alignment with MCS; choose the
