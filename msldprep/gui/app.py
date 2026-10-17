@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 MAX_TEXT = 20_000_000  # characters of one upload
+TOKEN_ENV = "MSLDPREP_GUI_TOKEN"  # how `python -m msldprep.gui --reload` hands the token to the reloaded server
 
 
 class ReferenceIn(BaseModel):
@@ -135,8 +136,26 @@ def create_app(token: str, session: AlignmentSession | None = None) -> FastAPI:
         session.reset()
         return session.summary()
 
+    @app.middleware("http")
+    async def _revalidate_static(request: Request, call_next):
+        # The browser may keep the page's scripts but must ask whether they changed,
+        # so an edited app.js or style.css shows on a plain refresh.
+        response = await call_next(request)
+        if request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
+
+
+def create_app_from_env() -> FastAPI:
+    """`create_app` with the token from the environment: the factory a reloading
+    server imports again after each change to the code."""
+    token = os.environ.get(TOKEN_ENV)
+    if not token:
+        raise RuntimeError(f"{TOKEN_ENV} is not set.")
+    return create_app(token)
 
 
 def _run_logged(run) -> None:

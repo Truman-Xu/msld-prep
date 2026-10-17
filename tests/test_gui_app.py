@@ -47,6 +47,24 @@ def test_the_page_and_its_scripts_are_served_without_outside_links(client):
     assert client.get("/static/3Dmol-min.js").status_code == 200
 
 
+def test_the_browser_must_ask_whether_the_scripts_changed(client):
+    for path in ("/static/app.js", "/static/style.css"):
+        assert client.get(path).headers["cache-control"] == "no-cache"
+    assert client.get("/").headers["cache-control"] == "no-store"
+
+
+def test_the_reloading_server_takes_its_token_from_the_environment(monkeypatch):
+    from msldprep.gui.app import TOKEN_ENV, create_app_from_env
+
+    monkeypatch.setenv(TOKEN_ENV, "from-env")
+    app = create_app_from_env()
+    assert TestClient(app).get("/api/state", headers={"X-Token": "from-env"}).status_code == 200
+    assert TestClient(app).get("/api/state", headers={"X-Token": TOKEN}).status_code == 403
+    monkeypatch.delenv(TOKEN_ENV)
+    with pytest.raises(RuntimeError, match=TOKEN_ENV):
+        create_app_from_env()
+
+
 def test_whole_flow_through_the_api(client):
     assert client.put("/api/reference", json={"name": "ref", "text": _reference_text()}).status_code == 200
     assert client.put("/api/analogs", json={"text": ANALOG_TEXT + "\nCCO ethanol\n"}).status_code == 200

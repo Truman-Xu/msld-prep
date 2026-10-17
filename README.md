@@ -51,7 +51,12 @@ types, no charges). No CGenFF typing is involved.
 ```bash
 pip install fastapi uvicorn             # the `[web]` extra, if the environment lacks them
 python -m msldprep.gui                  # prints the tunnel command and a URL with an access token
+python -m msldprep.gui --reload         # for development: restarts when a Python file changes
 ```
+
+Changes to the page itself (`msldprep/gui/static/`) show on a refresh of the browser. Changes to
+the Python code need a restart, which `--reload` does by itself, keeping the port and the token;
+each restart forgets the loaded reference, analogs and results.
 
 On your own computer run the printed `ssh -L ...` command, then open the printed address. The
 server listens on localhost only, needs the token, and keeps everything in memory: nothing is
