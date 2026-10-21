@@ -525,3 +525,22 @@ def test_a_stereoisomer_limit_of_one_still_gives_an_alignment():
     reference = _embedded("c1ccccc1CC(=O)NC")
     analog, result = _aligned("c1ccccc1CC(=O)NC(C)CC", reference, max_stereoisomers=1)
     assert result.atom_map and analog.GetNumConformers() == 1
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="#15: RemoveHs keeps isotope-labeled hydrogens, so find_shared_core searches with every hydrogen",
+)
+def test_the_shared_core_search_leaves_hydrogens_out():
+    ligands = [
+        align.load_ligand(
+            os.path.join(CHEMBL_DIR, f"{stem}.mol2"),
+            os.path.join(CHEMBL_DIR, f"{stem}.rtf"),
+            os.path.join(CHEMBL_DIR, f"{stem}.prm"),
+            name=stem,
+        )
+        for stem in [REFERENCE_STEM, ANALOG_STEMS[0]]
+    ]
+    # query atoms match by isotope only, so they report atomic number 0; count them instead
+    core = align.type_ligands_and_find_core(ligands)
+    assert core.GetNumAtoms() <= min(ligand.mol.GetNumHeavyAtoms() for ligand in ligands)
