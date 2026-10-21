@@ -1,6 +1,6 @@
 # Issues and plans
 
-Last updated 2026-10-14. **This is not a roadmap.** A roadmap needs an order and reasons for the
+Last updated 2026-10-21. **This is not a roadmap.** A roadmap needs an order and reasons for the
 order, and the order depends on how the original `msld-py-prep` pipeline works and what the new
 pipeline's inputs and outputs should be. The owner is still learning that (see
 [AGENT_HANDOFF.md](AGENT_HANDOFF.md), Q13), so this file does only two jobs: it lists the
@@ -15,6 +15,7 @@ Where things live:
 | Status and discussion of one issue | the GitHub issue, `https://github.com/Truman-Xu/msld-prep/issues/<N>` |
 | What is open, and the evidence for it | this file |
 | Who did what, traps, decisions | [AGENT_HANDOFF.md](AGENT_HANDOFF.md) |
+| Design decisions for the re-design | [DESIGN_NOTES.md](DESIGN_NOTES.md) |
 | Standards the work should meet | [BEST_PRACTICES.md](BEST_PRACTICES.md) |
 
 ## How to use this file
@@ -62,9 +63,10 @@ Template for a feature:
 | #9 | Alignment fails with "molecule doesn't match the core" when the **reference** has a charged atom | bug | **fixed 2026-10-14**, closed by `e670117` | `tests/test_align.py::test_align_to_reference_matches_atoms_whatever_their_charge` |
 | #11 | Which symmetric match is embedded is arbitrary, so a ring can come out flipped | bug | **fixed 2026-10-16**, closed by `56f697c` | `tests/test_align.py::test_a_decorated_ring_turns_its_substituent_toward_the_reference_substituent` |
 | #13 | The core search kept RDKit's 3600 s limit, so one alignment could take an hour | bug | **fixed 2026-10-16**, closed by `9002a9e` (10 s by default) | `tests/test_align.py::test_the_core_search_has_a_ten_second_limit_by_default` |
-| #1 | Reference and analog protonation states can mismatch | correctness | open, not reproduced | none yet |
-| #2 | Respect chirality of molecules through the pipeline | correctness | **partly done 2026-10-16**: alignment settles and reports stereo (`b51a361`) and puts the core exactly on the reference, falling back when that would invert a centre (`f43e56d`); decomposition and the CHARMM writers were not examined, and the GUI is limited to alignment | `tests/test_align.py` (stereochemistry section, `test_the_core_keeps_the_reference_geometry_ring_puckers_included`) |
-| #14 | Speed up the core search for large molecules (junction tree and other ideas) | enhancement | open; the owner decides on Monday 2026-10-19 whether to work on it next | none yet |
+| #15 | The shared-core search keeps every hydrogen: `Chem.RemoveHs` keeps isotope-labeled atoms, so `align.find_shared_core` runs `FindMCS` with all hydrogens, against its own comment | bug | open, found 2026-10-21; may explain part of the slowness of #14. **Not a one-line fix:** the hydrogens in the query are what puts core hydrogens in the core today (and hydrogens of differing type make hydrogen-only sites); the fix needs an explicit hydrogen rule, see the comment on #15 and `DESIGN_NOTES.md` (i) | `tests/test_align.py::test_the_shared_core_search_leaves_hydrogens_out` (strict `xfail`) |
+| #1 | Option to require matching protonation states between reference and analog | enhancement | **rewritten 2026-10-21** to the owner's meaning: tolerance is done in alignment (#9, `ignore_bond_orders`); left to do is an opt-in strict option, off by default, planned for the next session | none yet |
+| #2 | Respect chirality of molecules in the structure alignment | correctness | **closed 2026-10-21**, scope limited to alignment by the owner, who is satisfied with it; the whole pipeline is tested after the re-design. Before: alignment settles and reports stereo (`b51a361`) and puts the core exactly on the reference, falling back when that would invert a centre (`f43e56d`); decomposition and the CHARMM writers were not examined, and the GUI is limited to alignment | `tests/test_align.py` (stereochemistry section, `test_the_core_keeps_the_reference_geometry_ring_puckers_included`) |
+| #14 | Speed up the core search for large molecules (junction tree and other ideas) | enhancement | **postponed 2026-10-21** by the owner until the whole pipeline is re-designed and re-implemented | none yet |
 
 ### #9 Matching the common structure regardless of charge
 
@@ -133,10 +135,11 @@ Template for a feature:
 - **Not checked:** the owner's own series beyond the three analogs of `panel_a`; cores with more
   than 32 distinct orientations (the search stops at `McsOptions.max_orientations`).
 
-### #2 Stereochemistry (partly done)
+### #2 Stereochemistry (closed 2026-10-21 for alignment)
 
-- **Status:** the alignment step is done 2026-10-16 (`b51a361`, `a44e480`); the issue stays open
-  for the other stages (`decompose.py`, the writers) and because the GUI is limited to alignment.
+- **Status:** the alignment step is done 2026-10-16 (`b51a361`, `a44e480`). The owner limited the
+  issue to alignment on 2026-10-21 and closed it; the other stages (`decompose.py`, the writers) are
+  tested after the re-design.
 - **What alignment does now:** a specified centre is kept as given. An unspecified centre inside the
   core, on an atom where the reference has a stereocentre (read from its 3D coordinates), is set the
   way that fits the reference. Any other unspecified centre or double bond is set each way and the
@@ -180,8 +183,8 @@ Unordered. Nothing here is scheduled.
 | F-9 | Compare the old and new pipelines on real MSLD runs | decide the design with evidence | learning plan, CHARMM basics from colleagues | none | |
 | F-11 | Option to keep the original atom names in the mol2 export | the owner's choice to rename is deliberate (CGenFF), but some uses need the original names | F-3 | #10 | default stays "new unique names"; refuse kept names that are duplicated or longer than four characters |
 | F-12 | Manual tuning of an aligned analog in the GUI: rotate a bond to fix a small misalignment | the constrained embed can leave a free part in a slightly wrong pose | F-1 | none yet | 3Dmol.js has no bond-rotation tool (checked 2026-10-14: no torsion or dihedral code in the bundled 2.4.2), only atom picking (`setClickable`, `setHoverable`) and `setCoordinates`. Likely design: pick a bond in the page, send it with an angle to the server, rotate the atoms on the side that holds no matched-core atom with RDKit (`rdMolTransforms`), return the new coordinates, show clashes. The core must stay fixed. Not decided |
-| F-14 | **Speed up the core search for large molecules; the owner decides on Monday 2026-10-19 whether to take it on next** (junction tree comparison as in Jin et al., `seedSmarts`, scaffold substructure first, caching) | aligning large molecules is slow; the MCS search is the likely cause (profile first: the orientation and stereo search embed several candidates too) | none | #14 | risks of the junction-tree idea are listed in #14: the tree is not unique, labels must not carry bond orders, atoms inside matched rings still need mapping, results may differ from `FindMCS` |
-| F-10 | Learning plan for the original `msld-py-prep` | prerequisite of the roadmap | none | none | postponed until after the GUI demo; seed in handoff Q13 |
+| F-14 | **Speed up the core search for large molecules; postponed 2026-10-21 until after the re-design** (fix #15 first, then profile) (junction tree comparison as in Jin et al., `seedSmarts`, scaffold substructure first, caching) | aligning large molecules is slow; the MCS search is the likely cause (profile first: the orientation and stereo search embed several candidates too) | none | #14 | risks of the junction-tree idea are listed in #14: the tree is not unique, labels must not carry bond orders, atoms inside matched rings still need mapping, results may differ from `FindMCS` |
+| F-10 | Learning plan for the original `msld-py-prep` | prerequisite of the roadmap | none | none | **started 2026-10-21**; lessons live in the owner's Obsidian vault (`/home/ziqiaoxu/obsidian/msld-prep/`); the design notes are there and in [DESIGN_NOTES.md](DESIGN_NOTES.md). Lessons 1 and 2 done |
 
 ## Deliberate behaviors
 
@@ -249,3 +252,4 @@ order with reasons, and link each to its issue.
 | 2026-10-16 | A second click on the selected analog deselects it (reference alone in the view) | `3a38fac` |
 | 2026-10-16 | Hidden file inputs kept inside their buttons; they had covered the "Settings" and "2D structure" toggles in Safari when the left panel scrolled | `af93fd5` |
 | 2026-10-16 | GUI text in American English ("stereocenter") | `f1f9edd` |
+| 2026-10-21 | GUI README: walk-through, contents of the downloads, troubleshooting | #8 (part), `msldprep/gui/README.md`, uncommitted when written |
