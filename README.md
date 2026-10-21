@@ -54,18 +54,9 @@ python -m msldprep.gui                  # prints the tunnel command and a URL wi
 python -m msldprep.gui --reload         # for development: restarts when a Python file changes
 ```
 
-Changes to the page itself (`msldprep/gui/static/`) show on a refresh of the browser. Changes to
-the Python code need a restart, which `--reload` does by itself, keeping the port and the token;
-each restart forgets the loaded reference, analogs and results.
-
 On your own computer run the printed `ssh -L ...` command, then open the printed address. The
-server listens on localhost only, needs the token, and keeps everything in memory: nothing is
-written unless you press the download button. The mol2 files get **new unique atom names** and
-no charges, on purpose: CGenFF, which they are written for, only keeps unique short names and
-computes its own charges (an option to keep the original names is planned, #10). Try it with `examples/2_ChEMBL/11896.mol2` as the
-reference and `examples/gui_demo/analogs.txt` as the analogs. The 3D view needs a browser with
-WebGL. 3Dmol.js (BSD-3-Clause) is bundled in `msldprep/gui/static/`, so the page loads nothing
-from the internet.
+walk-through, what the downloads contain (the mol2 files get new unique atom names and no
+charges, on purpose) and troubleshooting are in [`msldprep/gui/README.md`](msldprep/gui/README.md).
 
 ## Test
 
