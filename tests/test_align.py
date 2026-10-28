@@ -343,6 +343,43 @@ def test_ignoring_bond_orders_matches_a_tautomer_in_full(reference_smiles, analo
     assert core_size(True) == heavy_atoms
 
 
+@pytest.mark.parametrize(
+    "reference_smiles, analog_smiles, flagged",
+    [
+        ("c1ccc2c(c1)c(ncn2)Nc1cccc(Br)c1", "Oc1ccc2c(Nc3cccc(Br)c3)[nH+]cnc2c1", {"N": (1, 0, 1, 0)}),  # protonated ring N
+        ("O=c1cccc[nH]1", "Oc1ccccn1", {"N": (0, 0, 0, 1), "O": (0, 0, 1, 0)}),  # tautomer: the H moves from N to O
+    ],
+    ids=["protonated-ring-N", "tautomer"],
+)
+def test_the_protonation_check_flags_core_atoms_and_leaves_the_pose_as_it_is(reference_smiles, analog_smiles, flagged):
+    reference = _embedded(reference_smiles)
+
+    def aligned(check_protonation):
+        analog = _embedded(analog_smiles)
+        options = align.McsOptions(ignore_bond_orders=True, check_protonation=check_protonation)
+        return analog, align.align_to_reference(analog, reference, mcs=options)
+
+    tolerant_mol, tolerant = aligned(False)
+    strict_mol, strict = aligned(True)
+    assert tolerant.protonation_differences == ()
+    assert strict.atom_map == tolerant.atom_map and strict.rmsd == tolerant.rmsd
+    assert strict_mol.GetConformer().GetPositions().tolist() == tolerant_mol.GetConformer().GetPositions().tolist()
+    found = {
+        strict_mol.GetAtomWithIdx(d.atom).GetSymbol(): (d.charge, d.ref_charge, d.hydrogens, d.ref_hydrogens)
+        for d in strict.protonation_differences
+    }
+    assert found == flagged
+    assert all(strict.atom_map[d.atom] == d.ref_atom for d in strict.protonation_differences)
+
+
+def test_the_protonation_check_does_not_flag_a_substituent_in_place_of_a_hydrogen():
+    reference = _embedded("c1ccc2c(c1)c(ncn2)Nc1cccc(Br)c1")
+    analog = _embedded("Oc1ccc2c(Nc3cccc(Br)c3)ncnc2c1")  # the hydroxy carbon is a CH in the reference
+    result = align.align_to_reference(analog, reference, mcs=align.McsOptions(check_protonation=True))
+    assert len(result.atom_map) == reference.GetNumHeavyAtoms()
+    assert result.protonation_differences == ()
+
+
 def _spy_on_find_mcs(monkeypatch, *, canceled=False):
     """Replace `align.FindMCS` by a wrapper that records its keyword arguments and
     can report the search as cancelled (the time limit hit)."""

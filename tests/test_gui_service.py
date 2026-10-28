@@ -340,6 +340,26 @@ def test_tautomers_of_the_reference_align_in_full_with_the_default_settings():
     assert session.summary()["analogs"][0]["core_atoms"] == 10
 
 
+def test_protonation_changes_are_flagged_only_when_asked_and_the_pose_stays():
+    reference = Chem.AddHs(Chem.MolFromSmiles("O=c1cccc[nH]1"))
+    Chem.rdDistGeom.EmbedMolecule(reference, randomSeed=3)
+    session = AlignmentSession()
+    session.set_reference("pyridone", Chem.MolToMolBlock(reference))
+    session.set_analogs("Oc1ccccn1 hydroxypyridine")
+    assert session.summary()["params"]["check_protonation"] is False
+    session.align_all()
+    tolerant = session.ligand_view("hydroxypyridine")
+    assert tolerant["protonation"] == [] and session.summary()["analogs"][0]["protonation_flag"] is False
+
+    session.set_params(check_protonation=True)
+    session.align_all()
+    strict = session.ligand_view("hydroxypyridine")
+    assert session.summary()["analogs"][0]["protonation_flag"] is True
+    assert strict["molblock"] == tolerant["molblock"]
+    assert sorted(note["atom"][0] for note in strict["protonation"]) == ["N", "O"]
+    assert any("neutral, 0 H; reference N" in note["note"] for note in strict["protonation"])
+
+
 def test_the_view_says_how_many_orientations_the_core_had_and_which_was_used():
     session = AlignmentSession()
     reference = Chem.AddHs(Chem.MolFromSmiles("COc1ccccc1CC(=O)O"))

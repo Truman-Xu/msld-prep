@@ -93,7 +93,7 @@ function renderState() {
     badges.append(el("span", `badge ${status}`, status));
     li.append(badges);
     const meta = a.status === "aligned"
-      ? `RMSD ${a.rmsd.toFixed(3)} Å · ${a.core_atoms} core atoms · seed ${a.seed}${a.stereo_flag ? " · check stereo" : ""}`
+      ? `RMSD ${a.rmsd.toFixed(3)} Å · ${a.core_atoms} core atoms · seed ${a.seed}${a.stereo_flag ? " · check stereo" : ""}${a.protonation_flag ? " · check protonation" : ""}`
       : a.status === "failed" ? a.error : "not aligned yet";
     li.append(el("span", "meta", meta));
     li.addEventListener("click", () => guarded(() => toggle(a.name)));
@@ -119,6 +119,7 @@ function syncParams() {
   $("p-complete").checked = p.complete_rings_only;
   $("p-ringring").checked = p.ring_matches_ring_only;
   $("p-anybond").checked = p.ignore_bond_orders;
+  $("p-protonation").checked = p.check_protonation;
   $("p-timeout").value = p.timeout;
   $("p-seed").value = p.seed;
   $("t-color").checked = colorReference;
@@ -148,6 +149,9 @@ function renderDetail() {
     for (const item of view.stereo) {
       const row = el("dd", item.flag ? "error" : null, item.note);
       dl.append(el("dt", null, "Stereo"), row);
+    }
+    for (const item of view.protonation) {
+      dl.append(el("dt", null, "Protonation"), el("dd", "error", item.note));
     }
     if (view.mcs_timed_out) add("Core search", "hit its time limit; the best structure found is used");
     $("r-seed").value = view.seed + 1;
@@ -338,6 +342,7 @@ async function align() {
       complete_rings_only: $("p-complete").checked,
       ring_matches_ring_only: $("p-ringring").checked,
       ignore_bond_orders: $("p-anybond").checked,
+      check_protonation: $("p-protonation").checked,
       timeout: Number($("p-timeout").value) || 10,
       seed: Number($("p-seed").value) || 0,
     },

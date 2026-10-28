@@ -80,6 +80,23 @@ def _stereo_notes(mol: Chem.Mol, alignment: CoreAlignment) -> list[dict]:
     return notes
 
 
+def _protonation_notes(mol: Chem.Mol, reference: Chem.Mol, alignment: CoreAlignment) -> list[dict]:
+    """One entry per core atom whose protonation differs from the reference's;
+    empty unless the alignment was run with `check_protonation`."""
+
+    def state(charge: int, hydrogens: int) -> str:
+        return f"charge {charge:+d}, {hydrogens} H" if charge else f"neutral, {hydrogens} H"
+
+    notes = []
+    for diff in alignment.protonation_differences:
+        name = f"{mol.GetAtomWithIdx(diff.atom).GetSymbol()}{diff.atom + 1}"
+        ref_name = f"{reference.GetAtomWithIdx(diff.ref_atom).GetSymbol()}{diff.ref_atom + 1}"
+        text = (f"{name}: {state(diff.charge, diff.hydrogens)}; "
+                f"reference {ref_name}: {state(diff.ref_charge, diff.ref_hydrogens)}")
+        notes.append({"atom": name, "reference_atom": ref_name, "note": text})
+    return notes
+
+
 EXPORT_FORMATS = ("sdf", "mol2")
 
 
@@ -289,6 +306,7 @@ class AlignmentSession:
         complete_rings_only: bool | None = None,
         ring_matches_ring_only: bool | None = None,
         ignore_bond_orders: bool | None = None,
+        check_protonation: bool | None = None,
         timeout: int | None = None,
         seed: int | None = None,
     ) -> None:
@@ -303,6 +321,8 @@ class AlignmentSession:
                 mcs = replace(mcs, ring_matches_ring_only=ring_matches_ring_only)
             if ignore_bond_orders is not None:
                 mcs = replace(mcs, ignore_bond_orders=ignore_bond_orders)
+            if check_protonation is not None:
+                mcs = replace(mcs, check_protonation=check_protonation)
             if timeout is not None:
                 if timeout < 1:
                     raise SessionError("The core search time limit must be at least 1 second.")
@@ -412,6 +432,7 @@ class AlignmentSession:
                     "complete_rings_only": mcs.complete_rings_only,
                     "ring_matches_ring_only": mcs.ring_matches_ring_only,
                     "ignore_bond_orders": mcs.ignore_bond_orders,
+                    "check_protonation": mcs.check_protonation,
                     "timeout": mcs.timeout,
                     "seed": self.params.seed,
                 },
@@ -428,6 +449,7 @@ class AlignmentSession:
                         "core_atoms": len(e.alignment.atom_map) if e.alignment else None,
                         "mcs_timed_out": bool(e.alignment and e.alignment.mcs_timed_out),
                         "stereo_flag": bool(e.alignment and any(n["flag"] for n in _stereo_notes(e.mol, e.alignment))),
+                        "protonation_flag": bool(e.alignment and e.alignment.protonation_differences),
                     }
                     for e in self.analogs.values()
                 ],
@@ -470,6 +492,7 @@ class AlignmentSession:
                 orientations=alignment.orientations,
                 orientation=alignment.orientation,
                 stereo=_stereo_notes(entry.mol, alignment),
+                protonation=_protonation_notes(entry.mol, self.reference, alignment),
                 svg=_depiction_svg(entry.mol, set(alignment.atom_map)),
                 reference_svg=_depiction_svg(self.reference, set(alignment.atom_map.values())),
             )

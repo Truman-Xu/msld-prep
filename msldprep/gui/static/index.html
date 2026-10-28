@@ -44,6 +44,7 @@
         <label class="check"><input type="checkbox" id="p-complete" checked> Match whole rings only</label>
         <label class="check"><input type="checkbox" id="p-ringring"> Ring atoms match ring atoms only</label>
         <label class="check" title="Match atoms by element and connectivity only, so tautomers and protonation variants (which differ in bond orders) still match"><input type="checkbox" id="p-anybond" checked> Ignore bond orders (tautomers, protonation)</label>
+        <label class="check" title="The alignment is not changed; analogs whose core atoms differ from the reference in formal charge or number of hydrogens are marked for review"><input type="checkbox" id="p-protonation"> Flag protonation changes in the core</label>
         <div class="row">
           <label>Core search time limit (s) <input type="number" id="p-timeout" min="1" max="3600" value="10" title="After this time the best common structure found so far is used"></label>
           <label>Seed <input type="number" id="p-seed" min="0" value="2342"></label>

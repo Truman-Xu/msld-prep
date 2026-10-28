@@ -238,6 +238,12 @@ class McsOptions:
     tautomer or protonation variant even where RDKit perceives the ring
     differently (aromatic in one, alternating single and double bonds in the
     other).
+
+    `check_protonation` leaves the search and the pose as they are and only
+    reports, in `CoreAlignment.protonation_differences`, the core atoms whose
+    protonation differs from the reference's (see `ProtonationDifference`).
+    Off by default: in MSLD a different protonation state is usually an
+    intended change.
     """
 
     complete_rings_only: bool = True
@@ -249,6 +255,37 @@ class McsOptions:
     max_orientations: int = 32
     # How many stereoisomers to try when the analog leaves stereocentres unspecified.
     max_stereoisomers: int = 16
+    check_protonation: bool = False
+
+
+@dataclass(frozen=True)
+class ProtonationDifference:
+    """A core atom of the analog (`atom`) whose formal charge, or number of
+    attached atoms counting hydrogens, differs from that of the reference atom
+    it matches (`ref_atom`): a protonation or tautomer change. A substituent in
+    place of a hydrogen leaves that number as it is, so it is not reported.
+    """
+
+    atom: int
+    ref_atom: int
+    charge: int
+    ref_charge: int
+    hydrogens: int
+    ref_hydrogens: int
+
+
+def _protonation_differences(mol: Chem.Mol, ref_mol: Chem.Mol, atom_map: dict[int, int]) -> tuple[ProtonationDifference, ...]:
+    differences = []
+    for atom_idx, ref_idx in sorted(atom_map.items()):
+        atom, ref_atom = mol.GetAtomWithIdx(atom_idx), ref_mol.GetAtomWithIdx(ref_idx)
+        if atom.GetFormalCharge() != ref_atom.GetFormalCharge() or atom.GetTotalDegree() != ref_atom.GetTotalDegree():
+            differences.append(ProtonationDifference(
+                atom=atom_idx, ref_atom=ref_idx,
+                charge=atom.GetFormalCharge(), ref_charge=ref_atom.GetFormalCharge(),
+                hydrogens=atom.GetTotalNumHs(includeNeighbors=True),
+                ref_hydrogens=ref_atom.GetTotalNumHs(includeNeighbors=True),
+            ))
+    return tuple(differences)
 
 
 @dataclass(frozen=True)
@@ -294,6 +331,7 @@ class CoreAlignment:
     orientations: int = 1  # distinct ways the core fits the analog, up to `McsOptions.max_orientations`
     orientation: int = 0  # index of the one used
     stereo: tuple[StereoCenter, ...] = ()
+    protonation_differences: tuple[ProtonationDifference, ...] = ()  # filled only with `McsOptions.check_protonation`
 
 
 def _specified_stereo(mol: Chem.Mol) -> dict[tuple[int, int], tuple]:
@@ -636,9 +674,14 @@ def align_to_reference(
     )
     if mcs_result.canceled:
         logger.warning("The MCS search hit its %s s limit; using the best structure found.", mcs.timeout)
+    protonation = _protonation_differences(mol, ref_mol, atom_map) if mcs.check_protonation else ()
+    if protonation:
+        logger.warning(
+            "Protonation differs from the reference at core atom(s) %s.", ", ".join(str(d.atom) for d in protonation)
+        )
     return CoreAlignment(
         core=core, atom_map=atom_map, rmsd=rmsd, seed=seed, mcs_timed_out=bool(mcs_result.canceled),
-        orientations=len(candidates), orientation=chosen, stereo=stereo,
+        orientations=len(candidates), orientation=chosen, stereo=stereo, protonation_differences=protonation,
     )
 
 

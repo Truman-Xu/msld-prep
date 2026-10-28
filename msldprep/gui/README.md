@@ -66,6 +66,7 @@ The demo uses public data: the ChEMBL series of `examples/2_ChEMBL`.
    | Seed | the random seed of the embedding |
    | Orientation | only for a symmetric core: which of the equivalent matches was used. It is chosen by how well the analog's substituents overlap the reference's |
    | Stereo | one line per stereocenter of the analog; a line in red needs your attention (below) |
+   | Protonation | only with "Flag protonation changes in the core" on: one red line per core atom whose formal charge or number of hydrogens differs from the reference atom it matches, for example `N7: neutral, 0 H; reference N7: neutral, 1 H`. The list shows "check protonation" for that analog |
    | Core search | appears when the search hit its time limit, so the core may be smaller than it could be |
 
    Below the table, a 2D drawing shows the matched core in blue.
@@ -95,10 +96,11 @@ the analog stands out) and **Reset view**.
 | Match whole rings only | on | a ring is either fully in the common structure or not at all |
 | Ring atoms match ring atoms only | off | a ring atom never matches a chain atom |
 | Ignore bond orders | on | atoms match by element and connectivity only, so tautomers and protonation variants still match. Leave it on for a reference read from a protonated structure: its rings may be drawn as alternating single and double bonds instead of aromatic |
+| Flag protonation changes in the core | off | the alignment is the same either way. With it on, a core atom whose formal charge, or number of attached atoms counting hydrogens, differs from the reference's is reported (panel 4). A substituent in place of a hydrogen is not reported. Leave it off when the series is meant to change protonation states, as MSLD series often are |
 | Core search time limit | 10 s | after this, the best common structure found so far is used |
 | Seed | 2342 | the seed of the first alignment. The same input and seed give the same result |
 
-Charges and hydrogen counts never affect the match.
+Charges and hydrogen counts never affect the match; "Flag protonation changes in the core" only reports them.
 
 ## What the downloads contain
 
