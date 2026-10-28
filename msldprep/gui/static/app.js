@@ -171,8 +171,9 @@ function updateDownload() {
   const any = state && state.analogs.some((a) => a.status === "aligned");
   $("download").disabled = !any;
   const mol2 = $("d-format").value === "mol2";
+  $("d-keepnames").disabled = !mol2;
   $("d-hint").textContent = (mol2
-    ? "mol2 as in the notebook: Sybyl atom types, new atom names, no charges. "
+    ? `mol2 as in the notebook: Sybyl atom types, ${$("d-keepnames").checked ? "the reference's own atom names where it has them" : "new atom names"}, no charges. `
     : "sdf keeps each analog's RMSD and seed. ")
     + "Nothing is stored on the server.";
 }
@@ -183,6 +184,7 @@ async function download() {
     which: $("d-which").value,
     reference: $("d-reference").checked,
     per_file: $("d-perfile").checked,
+    keep_names: $("d-format").value === "mol2" && $("d-keepnames").checked,
   });
   const res = await fetch(`/api/export?${query}`, { headers: { "X-Token": token } });
   if (!res.ok) {
@@ -411,6 +413,7 @@ $("accept").addEventListener("click", () => guarded(() => decide("accepted")));
 $("reject").addEventListener("click", () => guarded(() => decide("rejected")));
 $("realign").addEventListener("click", () => guarded(realign));
 $("d-format").addEventListener("change", () => state && updateDownload());
+$("d-keepnames").addEventListener("change", () => state && updateDownload());
 $("download").addEventListener("click", () => guarded(download));
 $("t-hydrogens").addEventListener("change", draw);
 $("ref2d").open = readSetting("ref2dOpen") === "1";

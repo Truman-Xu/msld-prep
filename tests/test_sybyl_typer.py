@@ -281,3 +281,39 @@ def test_matches_real_obabel_typing(name, smiles, tmp_path):
         i, j = bond.GetBeginAtomIdx() + 1, bond.GetEndAtomIdx() + 1
         my_bond_types[(min(i, j), max(i, j))] = sybyl_typer.sybyl_bond_type(bond, internal)
     assert my_bond_types == ob_bond_types
+
+
+def _named(smiles: str, names: dict[int, str]) -> Chem.Mol:
+    mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
+    for idx, name in names.items():
+        mol.GetAtomWithIdx(idx).SetProp("_TriposAtomName", name)
+    return mol
+
+
+def test_assign_unique_atom_names_replaces_every_name_by_default():
+    mol = _named("CCO", {0: "CA", 1: "CB", 2: "OG"})
+    names = sybyl_typer.assign_unique_atom_names(mol)
+    assert [names[i] for i in range(3)] == ["C001", "C002", "O001"]
+
+
+def test_kept_atom_names_stay_and_new_ones_never_clash_with_them():
+    # "C001" and "h001" are what fresh naming would hand out first
+    mol = _named("CCO", {0: "C001", 1: "CB", 2: "h001"})
+    names = sybyl_typer.assign_unique_atom_names(mol, keep_existing=True)
+    assert [names[i] for i in range(3)] == ["C001", "CB", "h001"]
+    hydrogens = [names[a.GetIdx()] for a in mol.GetAtoms() if a.GetSymbol() == "H"]
+    assert hydrogens == ["H002", "H003", "H004", "H005", "H006", "H007"]
+    assert all(a.GetProp("_TriposAtomName") == names[a.GetIdx()] for a in mol.GetAtoms())
+
+
+@pytest.mark.parametrize(
+    "names, message",
+    [
+        ({0: "CA", 1: "ca"}, r"used more than once: C1 \('CA'\), C2 \('ca'\)"),
+        ({0: "CALPHA"}, r"longer than 4 characters: C1 \('CALPHA'\)"),
+    ],
+    ids=["duplicate-ignoring-case", "too-long"],
+)
+def test_kept_atom_names_that_cgenff_would_renumber_are_refused_with_the_atoms_named(names, message):
+    with pytest.raises(sybyl_typer.SybylTypingError, match=message):
+        sybyl_typer.assign_unique_atom_names(_named("CCO", names), keep_existing=True)

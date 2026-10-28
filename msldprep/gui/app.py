@@ -123,9 +123,9 @@ def create_app(token: str, session: AlignmentSession | None = None) -> FastAPI:
 
     @app.get("/api/export", dependencies=auth)
     def export(
-        format: str = "sdf", which: str = "aligned", reference: bool = True, per_file: bool = False
+        format: str = "sdf", which: str = "aligned", reference: bool = True, per_file: bool = False, keep_names: bool = False
     ) -> Response:
-        result = session.export(format, which, include_reference=reference, one_per_file=per_file)
+        result = session.export(format, which, include_reference=reference, one_per_file=per_file, keep_names=keep_names)
         return Response(
             result.data,
             media_type=result.media_type,

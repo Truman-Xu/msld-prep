@@ -87,6 +87,14 @@ def test_whole_flow_through_the_api(client):
     assert 'filename="aligned_accepted.sdf"' in sdf.headers["content-disposition"]
     mol2 = client.get("/api/export", params={"format": "mol2", "which": "accepted", "reference": "false"})
     assert mol2.status_code == 200 and mol2.text.count("@<TRIPOS>MOLECULE") == 1
+    def second_reference_atom_name(response):
+        atoms = response.text.split("@<TRIPOS>ATOM")[1].splitlines()
+        return atoms[2].split()[1]
+
+    default = client.get("/api/export", params={"format": "mol2", "which": "accepted"})
+    named = client.get("/api/export", params={"format": "mol2", "which": "accepted", "keep_names": "true"})
+    assert named.status_code == 200
+    assert (second_reference_atom_name(default), second_reference_atom_name(named)) == ("C001", "C002")  # new, then its own
     archive = client.get("/api/export", params={"format": "mol2", "which": "accepted", "per_file": "true"})
     assert archive.headers["content-type"] == "application/zip"
     with zipfile.ZipFile(io.BytesIO(archive.content)) as zf:

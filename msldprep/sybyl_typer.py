@@ -300,7 +300,7 @@ def annotate_sybyl_types(mol: Chem.Mol) -> None:
         bond.SetProp(BOND_TYPE_PROP, sybyl_bond_type(bond, internal_types))
 
 
-def assign_unique_atom_names(mol: Chem.Mol) -> dict[int, str]:
+def assign_unique_atom_names(mol: Chem.Mol, *, keep_existing: bool = False) -> dict[int, str]:
     """Allocate a fresh globally-unique <=4-char name per atom (via
     `naming.allocate_unique_atom_name`) and set it as that atom's
     `"_TriposAtomName"` prop -- the same prop RDKit's own mol2 reader sets,
@@ -311,15 +311,52 @@ def assign_unique_atom_names(mol: Chem.Mol) -> dict[int, str]:
     names it's given but silently renumbers plain/duplicate element-symbol
     names on its own, which is what this exists to avoid.
 
+    With `keep_existing`, atoms that already have a name keep it and only
+    the others get a fresh one, never one already in use. Names are compared
+    ignoring case, as CHARMM does. Raises SybylTypingError, naming the atoms,
+    if a kept name is longer than 4 characters or used twice, since CGenFF
+    would renumber those.
+
     Returns the RDKit atom index -> assigned name mapping.
     """
+    kept: dict[int, str] = {}
+    if keep_existing:
+        kept = {
+            atom.GetIdx(): atom.GetProp("_TriposAtomName").strip()
+            for atom in mol.GetAtoms()
+            if atom.HasProp("_TriposAtomName") and atom.GetProp("_TriposAtomName").strip()
+        }
+        _check_kept_atom_names(mol, kept)
+    taken = {name.upper() for name in kept.values()}
     counters = new_counters()
     names: dict[int, str] = {}
     for atom in mol.GetAtoms():
-        name = allocate_unique_atom_name(atom.GetSymbol(), counters)
+        name = kept.get(atom.GetIdx())
+        while name is None or (atom.GetIdx() not in kept and name.upper() in taken):
+            name = allocate_unique_atom_name(atom.GetSymbol(), counters)
         atom.SetProp("_TriposAtomName", name)
         names[atom.GetIdx()] = name
     return names
+
+
+def _check_kept_atom_names(mol: Chem.Mol, kept: dict[int, str]) -> None:
+    def label(idx: int) -> str:
+        return f"{mol.GetAtomWithIdx(idx).GetSymbol()}{idx + 1} ({kept[idx]!r})"
+
+    problems = []
+    too_long = [idx for idx, name in kept.items() if len(name) > 4]
+    if too_long:
+        problems.append("longer than 4 characters: " + ", ".join(label(idx) for idx in too_long))
+    by_name: dict[str, list[int]] = {}
+    for idx, name in kept.items():
+        by_name.setdefault(name.upper(), []).append(idx)
+    duplicated = [group for group in by_name.values() if len(group) > 1]
+    if duplicated:
+        problems.append("used more than once: " + "; ".join(", ".join(label(idx) for idx in group) for group in duplicated))
+    if problems:
+        msg = f"Cannot keep the atom names (CGenFF would renumber them); names {' and '.join(problems)}."
+        logger.error(msg)
+        raise SybylTypingError(msg)
 
 
 def format_mol2_text(mol: Chem.Mol, *, mol_name: str = "LIG") -> str:

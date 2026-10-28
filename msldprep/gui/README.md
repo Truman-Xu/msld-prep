@@ -74,7 +74,8 @@ The demo uses public data: the ChEMBL series of `examples/2_ChEMBL`.
    the core sits badly, for example a side chain clashing with where the protein would be, enter
    another seed and press **Align again**. The core stays where it is. Only the free part moves.
 6. **Download.** Choose which structures (accepted only, or all aligned that were not rejected), the
-   format, whether to include the reference, and whether to get one file per structure.
+   format, whether to include the reference, whether to get one file per structure and, for mol2,
+   whether to keep the reference's atom names (below).
 
 The toolbar above the 3D view has **Overlay all aligned** (every aligned analog as thin lines, to see
 the whole series at once), **Hydrogens**, **Color reference by element** (off shows it in gray, so
@@ -109,8 +110,11 @@ Charges and hydrogen counts never affect the match; "Flag protonation changes in
   `AlignRMSD` and `AlignSeed`. Atom names are not stored.
 - **mol2**: Sybyl atom and bond types (the same typing as the notebook), **new unique atom names
   and no charges**. Both are deliberate: these files are written for CGenFF, which needs unique
-  short atom names and computes its own charges. An option to keep the original names is planned
-  (#10).
+  short atom names and computes its own charges. With **Keep the reference's atom names** checked,
+  a reference read from mol2 keeps the names in its file. Analogs, which come from SMILES, have no
+  names of their own and get new ones as usual. If a kept name is longer than four characters or
+  used twice (ignoring case), the download is refused with the atoms named, because CGenFF would
+  renumber them. An sdf reference has no atom names, so the option changes nothing for it.
 - **One structure per file**: a zip with one `<name>.sdf` or `<name>.mol2` per structure. If an
   analog has the same name as the reference, the reference's file gets `_reference` added.
 

@@ -109,8 +109,9 @@ class Export:
     data: bytes
 
 
-def _structure_text(mol: Chem.Mol, name: str, props: dict[str, str], fmt: str) -> str:
-    """One structure as sdf or mol2 text. `mol` is a copy the caller owns."""
+def _structure_text(mol: Chem.Mol, name: str, props: dict[str, str], fmt: str, *, keep_names: bool = False) -> str:
+    """One structure as sdf or mol2 text. `mol` is a copy the caller owns.
+    `keep_names` applies to mol2 only (see `AlignmentSession.export`)."""
     if fmt == "sdf":
         mol.SetProp("_Name", name)
         for key, value in props.items():
@@ -124,7 +125,7 @@ def _structure_text(mol: Chem.Mol, name: str, props: dict[str, str], fmt: str) -
         return buffer.getvalue()
     try:
         annotate_sybyl_types(mol)
-        assign_unique_atom_names(mol)
+        assign_unique_atom_names(mol, keep_existing=keep_names)
         return format_mol2_text(mol, mol_name=name)
     except SybylTypingError as exc:
         raise SessionError(f"Could not write {name} as mol2: {exc}") from exc
@@ -510,7 +511,13 @@ class AlignmentSession:
     # -- output --------------------------------------------------------------
 
     def export(
-        self, fmt: str = "sdf", which: str = "aligned", *, include_reference: bool = True, one_per_file: bool = False
+        self,
+        fmt: str = "sdf",
+        which: str = "aligned",
+        *,
+        include_reference: bool = True,
+        one_per_file: bool = False,
+        keep_names: bool = False,
     ) -> Export:
         """The structures chosen by `which`, written as `fmt` ("sdf" or "mol2").
 
@@ -521,7 +528,10 @@ class AlignmentSession:
 
         sdf records carry the analog's RMSD and seed. mol2 is written the way
         the notebook does (`sybyl_typer`): Sybyl atom and bond types, freshly
-        generated unique atom names, no charges.
+        generated unique atom names, no charges. With `keep_names`, atoms that
+        came with a name (those of a reference read from mol2) keep it and the
+        rest (analogs from SMILES, added hydrogens) get fresh names that do not
+        clash; duplicated or over-long kept names are refused.
         """
         if fmt not in EXPORT_FORMATS:
             raise SessionError(f"The format must be one of {EXPORT_FORMATS}.")
@@ -549,7 +559,7 @@ class AlignmentSession:
                 items.append((reference_name, Chem.Mol(self.reference), {"Role": "reference"}))
             items += analogs
 
-        texts = [(name, _structure_text(mol, name, props, fmt)) for name, mol, props in items]
+        texts = [(name, _structure_text(mol, name, props, fmt, keep_names=keep_names)) for name, mol, props in items]
         if one_per_file:
             archive = io.BytesIO()
             with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:

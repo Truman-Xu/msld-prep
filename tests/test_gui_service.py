@@ -191,6 +191,51 @@ def test_export_mol2_writes_sybyl_typed_structures_in_the_aligned_pose(aligned):
     assert aligned.ligand_view("10749")["molblock"] == view["molblock"]
 
 
+def _mol2_names(mol):
+    return [a.GetProp("_TriposAtomName") for a in mol.GetAtoms()]
+
+
+def test_export_mol2_can_keep_the_reference_atom_names(aligned):
+    original = _mol2_names(Chem.MolFromMol2Block(_reference_text(), removeHs=False))
+    renamed = _mol2_records(aligned.export("mol2", "aligned").data.decode())
+    assert _mol2_names(renamed[REFERENCE_STEM]) != original  # the default is unchanged: new names
+    kept = _mol2_records(aligned.export("mol2", "aligned", keep_names=True).data.decode())
+    assert _mol2_names(kept[REFERENCE_STEM]) == original
+    # analogs from SMILES have no names of their own, so they are named as before
+    assert _mol2_names(kept["10749"]) == _mol2_names(renamed["10749"])
+
+
+def _reference_mol2_without_hydrogens(rename: dict[int, str] | None = None) -> str:
+    from msldprep.sybyl_typer import annotate_sybyl_types, format_mol2_text
+
+    mol = Chem.RemoveHs(Chem.MolFromMol2Block(_reference_text(), removeHs=False))
+    for idx, name in (rename or {}).items():
+        mol.GetAtomWithIdx(idx).SetProp("_TriposAtomName", name)
+    annotate_sybyl_types(mol)
+    return format_mol2_text(mol, mol_name=REFERENCE_STEM)
+
+
+def test_an_sdf_reference_has_no_names_to_keep_so_it_is_named_as_by_default():
+    reference = Chem.MolFromMol2Block(_reference_text(), removeHs=False)
+    session = AlignmentSession()
+    session.set_reference(REFERENCE_STEM, Chem.MolToMolBlock(reference))
+    session.set_analogs(ANALOG_TEXT)
+    session.align_all()
+    renamed = _mol2_records(session.export("mol2", "aligned").data.decode())
+    kept = _mol2_records(session.export("mol2", "aligned", keep_names=True).data.decode())
+    assert _mol2_names(kept[REFERENCE_STEM]) == _mol2_names(renamed[REFERENCE_STEM])
+
+
+def test_kept_names_that_cgenff_would_renumber_are_refused_with_the_atoms_named():
+    session = AlignmentSession()
+    session.set_reference(REFERENCE_STEM, _reference_mol2_without_hydrogens({1: "C003"}))  # atom 3 is C003
+    session.set_analogs(ANALOG_TEXT)
+    session.align_all()
+    with pytest.raises(SessionError, match=r"used more than once: C2 \('C003'\), C3 \('C003'\)"):
+        session.export("mol2", "aligned", keep_names=True)
+    assert session.export("mol2", "aligned").data  # the default still works
+
+
 def test_export_one_structure_per_file_makes_a_zip_named_after_the_structures(aligned):
     for fmt, read in (("sdf", _sdf_records), ("mol2", _mol2_records)):
         export = aligned.export(fmt, "aligned", one_per_file=True)

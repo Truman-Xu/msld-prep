@@ -181,7 +181,7 @@ Unordered. Nothing here is scheduled.
 | F-7 | Fewer saved files: keep intermediate stages in memory | owner's goal (handoff section 2, 2026-10-12) | learning plan (Q13): which files CHARMM and ALF really read | none | |
 | F-8 | A web GUI for the whole preparation, not only alignment | owner's goal | F-6, F-7 | none | |
 | F-9 | Compare the old and new pipelines on real MSLD runs | decide the design with evidence | learning plan, CHARMM basics from colleagues | none | |
-| F-11 | Option to keep the original atom names in the mol2 export | the owner's choice to rename is deliberate (CGenFF), but some uses need the original names | F-3 | #10 | default stays "new unique names"; refuse kept names that are duplicated or longer than four characters |
+| F-11 | Option to keep the original atom names in the mol2 export | the owner's choice to rename is deliberate (CGenFF), but some uses need the original names | F-3 | #10 | **Done 2026-10-28**, see "Done". Default stays "new unique names"; kept names that are duplicated (ignoring case) or longer than four characters are refused with the atoms named. Only a reference read from mol2 has names to keep; analogs from SMILES are named as before (owner, 2026-10-28: as the issue says, no inheriting of reference names by the core) |
 | F-12 | Manual tuning of an aligned analog in the GUI: rotate a bond to fix a small misalignment | the constrained embed can leave a free part in a slightly wrong pose | F-1 | none yet | 3Dmol.js has no bond-rotation tool (checked 2026-10-14: no torsion or dihedral code in the bundled 2.4.2), only atom picking (`setClickable`, `setHoverable`) and `setCoordinates`. Likely design: pick a bond in the page, send it with an angle to the server, rotate the atoms on the side that holds no matched-core atom with RDKit (`rdMolTransforms`), return the new coordinates, show clashes. The core must stay fixed. Not decided |
 | F-14 | **Speed up the core search for large molecules; postponed 2026-10-21 until after the re-design** (fix #15 first, then profile) (junction tree comparison as in Jin et al., `seedSmarts`, scaffold substructure first, caching) | aligning large molecules is slow; the MCS search is the likely cause (profile first: the orientation and stereo search embed several candidates too) | none | #14 | risks of the junction-tree idea are listed in #14: the tree is not unique, labels must not carry bond orders, atoms inside matched rings still need mapping, results may differ from `FindMCS` |
 | F-10 | Learning plan for the original `msld-py-prep` | prerequisite of the roadmap | none | none | **started 2026-10-21**; lessons live in the owner's Obsidian vault (`/home/ziqiaoxu/obsidian/msld-prep/`); the design notes are there and in [DESIGN_NOTES.md](DESIGN_NOTES.md). Lessons 1 and 2 done |
@@ -195,7 +195,7 @@ Things that look like gaps but are choices. Do not "fix" them; change them only 
   (it silently renumbers others) and computes its own charges, so the writer
   (`sybyl_typer.assign_unique_atom_names`, `format_mol2_text`) gives every atom a fresh unique
   name, the reference included, and writes `NO_CHARGES`. The reference's names from its own file
-  are therefore not kept. An option to keep them is F-11 (#10). The sdf export keeps the
+  are therefore not kept unless "Keep the reference's atom names" is chosen (F-11, #10). The sdf export keeps the
   structure as it is and adds each analog's RMSD and seed.
 - **A realigned analog loses its accept or reject mark**, because the pose is new.
 - **The reference is used with hydrogens**, added with coordinates if the file has none.
@@ -249,6 +249,7 @@ order with reasons, and link each to its issue.
 | 2026-10-16 | Issues #5, #6, #7 closed as built; GUI scope limited to structure alignment with MCS (owner) | GitHub |
 | 2026-10-16 | Core placed exactly on the reference so rings keep its puckers, with a fallback that keeps an opposite configuration | #2 (part), `f43e56d` |
 | 2026-10-28 | Opt-in report of protonation changes in the core (off by default), in alignment and the GUI | #1; `McsOptions.check_protonation` |
+| 2026-10-28 | mol2 export option to keep the reference's atom names (off by default) | F-11, #10; `sybyl_typer.assign_unique_atom_names(keep_existing=)`, `AlignmentSession.export(keep_names=)` |
 | 2026-10-16 | `python -m msldprep.gui --reload` for development; page files served with `no-cache`, so edits show on a refresh | `decffa7` |
 | 2026-10-16 | A second click on the selected analog deselects it (reference alone in the view) | `3a38fac` |
 | 2026-10-16 | Hidden file inputs kept inside their buttons; they had covered the "Settings" and "2D structure" toggles in Safari when the left panel scrolled | `af93fd5` |

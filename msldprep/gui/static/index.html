@@ -103,6 +103,7 @@
       </div>
       <label class="check"><input type="checkbox" id="d-reference" checked> Include the reference</label>
       <label class="check" title="A zip with one file per structure, named after it"><input type="checkbox" id="d-perfile"> One structure per file (zip)</label>
+      <label class="check" title="mol2 only. Atoms of a reference read from mol2 keep their names; analogs and added hydrogens get new ones. CGenFF needs unique names of at most 4 characters, so other names are refused"><input type="checkbox" id="d-keepnames" disabled> Keep the reference's atom names</label>
       <button id="download" class="primary">Download</button>
       <p class="hint" id="d-hint"></p>
     </section>
