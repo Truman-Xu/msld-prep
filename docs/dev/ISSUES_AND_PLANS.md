@@ -66,6 +66,7 @@ Template for a feature:
 | #15 | The shared-core search keeps every hydrogen: `Chem.RemoveHs` keeps isotope-labeled atoms, so `align.find_shared_core` runs `FindMCS` with all hydrogens, against its own comment | bug | open, found 2026-10-21; may explain part of the slowness of #14. **Not a one-line fix:** the hydrogens in the query are what puts core hydrogens in the core today (and hydrogens of differing type make hydrogen-only sites); the fix needs an explicit hydrogen rule, see the comment on #15 and `DESIGN_NOTES.md` (i) | `tests/test_align.py::test_the_shared_core_search_leaves_hydrogens_out` (strict `xfail`) |
 | #1 | Option to require matching protonation states between reference and analog | enhancement | **done 2026-10-28**: `McsOptions.check_protonation` (off by default) reports core atoms whose formal charge or total degree differs, in `CoreAlignment.protonation_differences`; the match and pose are unchanged (owner's choice 2026-10-28: flag, not exclude or refuse). GUI setting and per-analog lines. Tolerance stays the default (#9, `ignore_bond_orders`) | `tests/test_align.py::test_the_protonation_check_flags_core_atoms_and_leaves_the_pose_as_it_is`, `test_the_protonation_check_does_not_flag_a_substituent_in_place_of_a_hydrogen`, `tests/test_gui_service.py::test_protonation_changes_are_flagged_only_when_asked_and_the_pose_stays` |
 | #2 | Respect chirality of molecules in the structure alignment | correctness | **closed 2026-10-21**, scope limited to alignment by the owner, who is satisfied with it; the whole pipeline is tested after the re-design. Before: alignment settles and reports stereo (`b51a361`) and puts the core exactly on the reference, falling back when that would invert a centre (`f43e56d`); decomposition and the CHARMM writers were not examined, and the GUI is limited to alignment | `tests/test_align.py` (stereochemistry section, `test_the_core_keeps_the_reference_geometry_ring_puckers_included`) |
+| #16 | GUI: a mol2 reference without hydrogens is used without them: RDKit's mol2 reader marks atoms `NoImplicit`, so `AddHs` in `set_reference` adds none | bug | open, found 2026-10-28 while working on #10; fix or refuse is the owner's call | `tests/test_gui_service.py::test_a_mol2_reference_without_hydrogens_gets_them` (strict `xfail`) |
 | #14 | Speed up the core search for large molecules (junction tree and other ideas) | enhancement | **postponed 2026-10-21** by the owner until the whole pipeline is re-designed and re-implemented | none yet |
 
 ### #9 Matching the common structure regardless of charge
@@ -198,7 +199,8 @@ Things that look like gaps but are choices. Do not "fix" them; change them only 
   are therefore not kept unless "Keep the reference's atom names" is chosen (F-11, #10). The sdf export keeps the
   structure as it is and adds each analog's RMSD and seed.
 - **A realigned analog loses its accept or reject mark**, because the pose is new.
-- **The reference is used with hydrogens**, added with coordinates if the file has none.
+- **The reference is used with hydrogens**, added with coordinates if the file has none. Not true
+  for a mol2 reference without hydrogens: none are added (#16, a bug).
 - **A symmetric core is placed by the reference's substituents** (#11): among the equivalent ways
   the core fits the analog, the one whose substituents lie nearest the reference's is embedded.
   Pocket space is meant to take over this decision later (F-2).

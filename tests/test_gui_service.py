@@ -226,6 +226,17 @@ def test_an_sdf_reference_has_no_names_to_keep_so_it_is_named_as_by_default():
     assert _mol2_names(kept[REFERENCE_STEM]) == _mol2_names(renamed[REFERENCE_STEM])
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="RDKit's mol2 reader marks every atom NoImplicit, so Chem.AddHs in set_reference adds no hydrogens "
+    "to a mol2 reference that has none (#16)",
+)
+def test_a_mol2_reference_without_hydrogens_gets_them():
+    session = AlignmentSession()
+    session.set_reference(REFERENCE_STEM, _reference_mol2_without_hydrogens())
+    assert session.summary()["reference"]["atoms"] == Chem.MolFromMol2Block(_reference_text(), removeHs=False).GetNumAtoms()
+
+
 def test_kept_names_that_cgenff_would_renumber_are_refused_with_the_atoms_named():
     session = AlignmentSession()
     session.set_reference(REFERENCE_STEM, _reference_mol2_without_hydrogens({1: "C003"}))  # atom 3 is C003
