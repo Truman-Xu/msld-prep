@@ -7,7 +7,7 @@ first; humans read it second.
 schema: agent-handoff/1
 repo: github.com/Truman-Xu/msld-prep   # public; first push 2026-10-08
 default_branch: main
-last_updated: 2026-10-21
+last_updated: 2026-10-28
 ```
 
 ## 0. Protocol
@@ -109,6 +109,9 @@ Follow these unless the owner says otherwise in your own session.
 
 | Date | Instruction | Tag |
 | --- | --- | --- |
+| 2026-10-28 | **#1 is a flag, not a filter:** with `check_protonation` on, the alignment is unchanged and the differing core atoms are reported (not excluded from the core, not a refused analog). Done, `248b646`. | `[told]` |
+| 2026-10-28 | **#10 as written:** only names an atom already has are kept (a mol2 reference); analog core atoms do not inherit the reference's names. Done, `25d4299`. **#15 stays parked** until the re-design settles the core-hydrogen rule. | `[told]` |
+| 2026-10-28 | Make the commits (#1, #10, #16 test) and push; later, commit and push the #17 test and the lesson-3 docs (each permission covered that push only). Then lesson 3. | `[told]` |
 | 2026-10-21 | **Design verdicts:** (a) settings come from a config file; (b) the script path is a session object run top to bottom, corrections as code or config, stops only for decisions, optional checkpoint, one implementation behind script, GUI and CLI: **adopted as the design**; (d) atom renames live in the data, not in a `translation.txt`. Details in `docs/dev/DESIGN_NOTES.md`. | `[told]` |
 | 2026-10-21 | **Keep the design notes in two places:** `docs/dev/DESIGN_NOTES.md` and the vault's `design-notes.md`, same content. | `[told]` |
 | 2026-10-21 | Exclude `zoe_msld_prep.ipynb` from git (done, `.git/info/exclude`). The owner's PI plans to publish it in a workshop for the legacy code on GitHub; until then treat it as unpublished (G12). | `[told]` |
@@ -213,7 +216,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G7 | Docstrings and configs still say `rewrite/msld_prep_cli.py` and `rewrite/scripts/...`, from when this code lived in a `rewrite/` directory. Four matches in `.py` and `.yaml` files. The real paths have no `rewrite/`. | `[ran grep 2026-10-08]` |
 | G8 | Untracked does not mean disposable. `build.*/` and `work.*/` are git-ignored but still hold the owner's runs; do not delete them. `TODO.md` was untracked; its two items are issues #1 and #2, and the owner deleted the file on 2026-10-14. | `[inferred]` |
 | G9 | Other sessions may edit `docs/dev/*.md` concurrently. Re-read a file immediately before editing it, and make targeted edits, never whole-file rewrites. | `[inferred: same hazard recorded in crimm's handoff]` |
-| G10 | `test_downstream_msld_prm_contract` puts `/home/ziqiaoxu/msld-py-prep` on `sys.path` and emits pandas `ChainedAssignmentError` warnings from that legacy file. The warnings are in legacy code, not in this repo. | `[ran 2026-10-08]` |
+| G10 | `test_downstream_msld_prm_contract` puts `/home/ziqiaoxu/msld-py-prep` on `sys.path` and emits pandas `ChainedAssignmentError` warnings from that legacy file. The warnings are in legacy code, not in this repo. **They are not harmless (2026-10-28):** under pandas 3 the chained assignments write nothing, so legacy `msld_prm` finds no bonds, angles or dihedrals and the test passes without testing anything (#17, strict xfail `test_downstream_msld_prm_finds_bonded_terms`). Legacy `msld_crn.py` does not run at all under pandas 3 (`KeyError: 0`, line 326). To run legacy code, use `/home/ziqiaoxu/.conda/envs/autogrow/bin/python` (Python 3.10, pandas 1.5.0, numpy 1.23; no RDKit check made) for `msld_crn`/`msld_prm`; `msld_mcs` runs in `crimm-dev`. | `[ran 2026-10-08]`, `[ran 2026-10-28]` |
 | G11 | `/home/ziqiaoxu/msld-prep-tools` is a symlink to `/home/ziqiaoxu/msld-prep` (published to cluster users; see standing instructions). Use the new path in docs and new scripts; do not break the link. | `[told 2026-10-08]`, `[ran]` |
 | G12 | The owner's untracked files `align.ipynb`, `analogues.txt`, `sil.mol2`, `sil.prm`, `sil.rtf`, `cellz.yaml` and `cellz_build.yaml` belong to the unpublished analog series (the notebook holds its structures, `analogues.txt` lists them, `cellz*.yaml` point to them). They are listed in `.git/info/exclude`, so `git add .` skips them. That file is local; a fresh clone has no such protection. `cellz.yaml` also holds a CGenFF install path. | `[read]` heads of the files, `[ran]` exclude |
 | G13 | `align.ipynb` reads its inputs from absolute paths in another lab member's directory, and was run only as far as cell 9. There it fails: `crimm/Adaptors/RDKitConverter.py::heterogen_to_rdkit` reads `het_res.pdbx_description`, which a `Residue` read from a CRD file lacks. The owner's hotfix is commit `8075b75` on crimm's local branch `RDKConverter-Het`, not the checked-out branch (`cleanup/phase0-tests-and-dev-docs`). Cells after 9 were not run. | `[ran 2026-10-08]` failure; `[inferred]` cause |
@@ -221,7 +224,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 
 ## 5. State
 
-Rewrite in place. True as of `2026-10-16` (end of day), except where a line says otherwise; lines marked 2026-10-21 were updated then.
+Rewrite in place. True as of `2026-10-16` (end of day), except where a line says otherwise; lines marked 2026-10-21 or 2026-10-28 were updated then.
 
 ```yaml
 git:
@@ -234,7 +237,8 @@ git:
            path, GUI plan, learning-plan intent), `align_to_reference` (#3) and the text loaders (#3),
            then this docs update; on 2026-10-14 four GUI commits (service #4, page #6, API #5, the
            charged-reference documentation #9), then the mol2 export (#7), the handoff update, and the 2026-10-14 documentation commits (Closes rule, deliberate behaviors and F-11, handoff), then three on the same day for #9: the matching rewrite, the GUI panel and setting, the docs
-  pushed: everything, through the 2026-10-16 wrap-up docs commit (each push at the owner's request, section 2); main is level with origin/main
+  pushed: everything, through the 2026-10-28 docs commit (each push at the owner's request, section 2); main is level with origin/main
+  commits_2026-10-28: 248b646 (#1), 25d4299 (#10), 393d994 (#16 xfail), c894fe4 (#17 xfail), then the lesson-3 docs and handoff commit
   commits_2026-10-16: test_structures ignored; #12 Uncharger removed; #13 MCS limit; #11 orientation (+ GUI note); #2 stereo in alignment (+ GUI) and the exact core placement f43e56d; GUI --reload, deselect, file-input scroll fix, American spelling; docs
   branch_protection: none          # not set
 github:
@@ -245,7 +249,7 @@ github:
            "#11 alignment embeds an arbitrary one of several equivalent symmetric matches (created 2026-10-14; was P-1 in the log entries of that day)",
            "#12 (remove the Uncharger option), #13 (MCS time limit) and #11 (symmetric orientation) closed by commits 2026-10-16; #5 to #7 closed as built; #2 partly done (alignment only); #14 speed-up ideas open, the owner decides on 2026-10-19 whether to work on it",
            "#9 alignment fails with \"molecule doesn't match the core\" when the reference has a charged atom (created 2026-10-14; closed by e670117 the same day)"]
-  open_issues_2026-10-21: ["#1 (rewritten: opt-in strict protonation option)", "#8", "#10", "#14 (postponed)", "#15 (new: hydrogens in the shared-core search)"]   # #2 closed 2026-10-21
+  open_issues_2026-10-28: ["#8", "#14 (postponed)", "#15 (parked)", "#16 (new: mol2 reference without hydrogens)", "#17 (new: msld_prm contract test vacuous under pandas 3)"]   # #1 and #10 closed 2026-10-28
   labels_created: [correctness, gui]    # on top of GitHub's defaults
   milestones: none                 # wait for ROADMAP.md
 tracked:
@@ -278,8 +282,8 @@ not_written_on_purpose:
   - docs/dev/ROADMAP.md
   - docs/dev/NOTES.md
   - CI workflow
-test_suite: {passed: 226, skipped: 0, date: 2026-10-21, env: crimm-dev, tool variables: set}   # at 3645cdb, before the #15 xfail test was added
-test_suite_without_tool_variables: {passed: 168, skipped: 58, date: 2026-10-16, run: after f1f9edd}
+test_suite: {passed: 237, skipped: 0, xfailed: 3, date: 2026-10-28, env: crimm-dev, tool variables: set}   # xfails: #15, #16, #17
+test_suite_without_tool_variables: {passed: 179, skipped: 58, xfailed: 3, date: 2026-10-28}
 env: crimm-dev                     # no separate env file
 crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul
 directory: /home/ziqiaoxu/msld-prep   # /home/ziqiaoxu/msld-prep-tools is a symlink to it (G11)
@@ -319,7 +323,7 @@ ROADMAP row.
 | Q10 | `align.ipynb` outputs and another user's paths? **ANSWERED 2026-10-08, superseded by Q11:** the owner asked for outputs stripped and the inputs copied in; then withdrew it because the notebook and its inputs hold unpublished structures. The notebook stays local and untracked. | 2026-10-08 |
 | Q11 | May the notebook's inputs, or anything built from the analog series, be published? **ANSWERED 2026-10-08 by the owner:** no. See the standing instruction. The public status of what *is* committed was checked before the push: all 375 tracked files under `examples/2_ChEMBL` are byte-identical to files tracked in the public `Vilseck-Lab/msld-py-prep` (anonymous `git ls-remote` works); the quinazoline SMILES in `configs/` match that public example; the SMILES in `tests/test_grouping.py` are generic biaryl compounds, not the unpublished series (`[read]`; the owner did not confirm that last point). | 2026-10-08 |
 | Q12 | `align.ipynb` fails at cell 9 on the checked-out crimm branch (G13). **PLAN 2026-10-08 `[told]`:** the fix is crimm's `RDKConverter-Het` (`8075b75`), which will not be published soon. Crimm's handoff (section 2, Orientation and log) tells its agents to remind the owner when it is published. Until then the notebook cells after 9 cannot be run on the checked-out crimm branch. Crimm is not ours to change. When reminded: re-run the notebook from cell 9, and record the crimm version that contains the fix in section 3. | 2026-10-08 |
-| Q13 | **STARTED 2026-10-21 `[told]`: lessons 1 and 2 done; notes in `/home/ziqiaoxu/obsidian/msld-prep/` (section 2, 2026-10-21). Design question (1) answered by reading: legacy `msld_mcs.py` step (7) deduplicates fragments per site (`UFrag`).** Earlier: item 2, POSTPONED 2026-10-14 by the owner until after the GUI demo `[told]`. Write the learning plan for the legacy pipeline (standing instruction 2026-10-12). Seed `[read 2026-10-12]`, nothing run: **sources** are the workshop notebook `BrooksResearchGroup-UM/MSLD-Workshop`, `4msld-py-prep/faah_prep/MSLD_Py_Prep.ipynb` (58 cells), and Vilseck, Cervantes, Hayes, Brooks, JCIM 2022, 62, 1479, DOI 10.1021/acs.jcim.2c00047. **Legacy modules** in `/home/ziqiaoxu/msld-py-prep`: `msld_py_prep.py` (driver, run twice), `msld_chk.py`, `msld_mcs.py`, `msld_mcs_rdecomp.py`, `msld_crn.py` (charge renormalization and most writers), `msld_prm.py`, `msld_wrt.py`, `vis_check.py`, `CRN_Plugin/`, `Lg_Solvate.sh`, `bookending_corrections/`; the legacy repo has no tests. **Worked example** `examples/1_FAAH` (2 sites, 33 substituents): read `NOTES`, `mol_list.txt`, `1.mol2/.rtf/.prm/.str`, `MCS_for_MSLD.txt`, then `build.name/` (`core.rtf`, `core.pdb`, `site1_sub1_pres.rtf`, `site1_sub1_frag.pdb`, `site2_sub1_pres.rtf`, `lpsites.inp`, `full_ligand.prm`, `translation.txt`, `name.inp`); `examples/2_ChEMBL/msld_py_prep.log` shows a bad core. **Why CRN:** substituents at a site coexist in one system, so each needs the same net charge and the core one shared charge set; CRN averages and redistributes charge with minimal change (the paper ties charge RMSD above about 0.001 e to changed free energies). **Design questions to answer by reading, none verified:** (1) legacy deduplicates identical fragments per site (`NSUBS 19 24` for 31 ligands), msld-prep appears not to (`nsubs` 34 34 34 for 34 ligands in `build.chembl_congeneric`): intended or regression? (2) does the proportional redistribution in `crn.py` meet the same constraints as the legacy cyclic 1e-6 loop? (3) legacy `.str` splitting has no counterpart on the `from-files` path, and its config comment about `.str` may be stale; (4) which output files do CHARMM or ALF really read, and which are review artefacts only (decides "fewer saved files"); (5) `bookending_corrections/` and `Lg_Solvate.sh` have no counterpart here. **Proposed format:** per-module notes with a worked trace of one small example, a by-hand CRN exercise on two or three ligands, a side-by-side old/new run on `examples/1_FAAH` and `2_ChEMBL`, then a session with colleagues on CHARMM. Where the plan file lives is the owner's call; no `ROADMAP.md` or `NOTES.md` until asked. | 2026-10-12 |
+| Q13 | **2026-10-28: lesson 3 (CRN) done; lesson 4 next.** **STARTED 2026-10-21 `[told]`: lessons 1 and 2 done; notes in `/home/ziqiaoxu/obsidian/msld-prep/` (section 2, 2026-10-21). Design question (1) answered by reading: legacy `msld_mcs.py` step (7) deduplicates fragments per site (`UFrag`).** Earlier: item 2, POSTPONED 2026-10-14 by the owner until after the GUI demo `[told]`. Write the learning plan for the legacy pipeline (standing instruction 2026-10-12). Seed `[read 2026-10-12]`, nothing run: **sources** are the workshop notebook `BrooksResearchGroup-UM/MSLD-Workshop`, `4msld-py-prep/faah_prep/MSLD_Py_Prep.ipynb` (58 cells), and Vilseck, Cervantes, Hayes, Brooks, JCIM 2022, 62, 1479, DOI 10.1021/acs.jcim.2c00047. **Legacy modules** in `/home/ziqiaoxu/msld-py-prep`: `msld_py_prep.py` (driver, run twice), `msld_chk.py`, `msld_mcs.py`, `msld_mcs_rdecomp.py`, `msld_crn.py` (charge renormalization and most writers), `msld_prm.py`, `msld_wrt.py`, `vis_check.py`, `CRN_Plugin/`, `Lg_Solvate.sh`, `bookending_corrections/`; the legacy repo has no tests. **Worked example** `examples/1_FAAH` (2 sites, 33 substituents): read `NOTES`, `mol_list.txt`, `1.mol2/.rtf/.prm/.str`, `MCS_for_MSLD.txt`, then `build.name/` (`core.rtf`, `core.pdb`, `site1_sub1_pres.rtf`, `site1_sub1_frag.pdb`, `site2_sub1_pres.rtf`, `lpsites.inp`, `full_ligand.prm`, `translation.txt`, `name.inp`); `examples/2_ChEMBL/msld_py_prep.log` shows a bad core. **Why CRN:** substituents at a site coexist in one system, so each needs the same net charge and the core one shared charge set; CRN averages and redistributes charge with minimal change (the paper ties charge RMSD above about 0.001 e to changed free energies). **Design questions to answer by reading, none verified:** (1) legacy deduplicates identical fragments per site (`NSUBS 19 24` for 31 ligands), msld-prep appears not to (`nsubs` 34 34 34 for 34 ligands in `build.chembl_congeneric`): intended or regression? (2) does the proportional redistribution in `crn.py` meet the same constraints as the legacy cyclic 1e-6 loop? (3) legacy `.str` splitting has no counterpart on the `from-files` path, and its config comment about `.str` may be stale; (4) which output files do CHARMM or ALF really read, and which are review artefacts only (decides "fewer saved files"); (5) `bookending_corrections/` and `Lg_Solvate.sh` have no counterpart here. **Proposed format:** per-module notes with a worked trace of one small example, a by-hand CRN exercise on two or three ligands, a side-by-side old/new run on `examples/1_FAAH` and `2_ChEMBL`, then a session with colleagues on CHARMM. Where the plan file lives is the owner's call; no `ROADMAP.md` or `NOTES.md` until asked. | 2026-10-12 |
 
 ## 8. Log
 
@@ -336,6 +340,34 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-28 claude-opus/claude-code/protonation-atom-names-lesson-3
+
+- asked: remind the working items after a week; plan the session; then #1 and #10, commits and push,
+  then lesson 3 (CRN). `[told 2026-10-28]`
+- did: #1 `McsOptions.check_protonation` + `CoreAlignment.protonation_differences` (charge or total
+  degree differs; a substituent in place of an H is not reported), GUI setting and lines (`248b646`,
+  Closes #1). #10 `assign_unique_atom_names(keep_existing=)`, `export(keep_names=)`, API and
+  checkbox (`25d4299`, Closes #10). Filed **#16** with a strict xfail (`393d994`). Pushed over SSH at
+  the owner's request. Lesson 3 in the vault (`lesson-03-charge-renormalization.md`), design notes
+  (j) to (m) in both copies. Filed **#17** with a strict xfail
+  (`tests/test_writers.py::test_downstream_msld_prm_finds_bonded_terms`, xfail only when pandas >= 3).
+- verified `[ran]`: full suite 237 passed, 3 xfailed with tool variables; 179 passed, 58 skipped,
+  3 xfailed without. Each of the three commits' trees tested on its own (exported to the
+  scratchpad); `app.js` parses with node 22 (`/home/ziqiaoxu/.conda/envs/juplab/bin/node`;
+  `/usr/bin/node` is too old for `??`). Lesson 3: legacy CRN rerun on FAAH 13, 31, 1 matches a hand
+  calculation to 1e-6; msld-prep's CRN meets the legacy constraints.
+- not verified: the new GUI controls in a browser (no one opened the page); the `autogrow` env was
+  checked for pandas and numpy only.
+- found: (1) mol2 references without H get none (#16). (2) Legacy needs pandas < 3, and the msld_prm
+  contract test was vacuous (#17, G10). (3) On FAAH 13, 31, 1 msld-prep splits the substituted
+  phenyl into two sites and changes charges 14× more (RMS) than legacy: design note (k).
+  (4) msld-prep averages the site charge per ligand, legacy per unique fragment: design note (l).
+- mistake, fixed before the push: my first split put one #10 test into the #16 commit; redone with
+  `git reset --soft` and `--amend`, with a backup branch (deleted after the push); final tree
+  unchanged.
+- next: owner decides #15, #16, #17 and design notes (j) to (m); lesson 4 (`msld_prm.py`,
+  `msld_wrt.py`, `name.inp`; run legacy in `autogrow`); #8 still needs a reader other than the author.
 
 ### 2026-10-21 claude-opus/claude-code/learning-lessons-1-2
 

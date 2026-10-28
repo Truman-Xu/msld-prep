@@ -118,3 +118,38 @@ are core when that atom carries the same number of hydrogens, of the same type, 
 Otherwise the atom is an anchor and its hydrogens join the fragment attached there. No
 hydrogen-only sites. Whether a type mismatch should instead push the heavy atom out of the core,
 as the legacy neighbor-type rule does, belongs to (e). **Open.**
+
+## From lesson 3
+
+### (j) Measure charge changes per atom, not as a percent of a fragment's total
+
+Both pipelines flag a fragment when its total changes by more than 5% of its original total. For
+a near-neutral fragment that means nothing: legacy prints "−44.43% ** CHECK" for 0.0013 e, and
+msld-prep warns "−833%" for 0.008 e. Proposal: report the largest change on any atom and the RMS
+change per ligand, in e, with a threshold the owner sets (the paper's figure of about 0.001 e RMS
+is a candidate, to be re-checked). **Open.**
+
+### (k) Don't cut a charge-coupled ring into separate sites
+
+On FAAH 13, 31, 1, legacy makes one site of the substituted phenyl. msld-prep keeps the whole ring
+in the core, then moves the substituted ring carbons out as anchors, which gives **two sites**.
+CGenFF shifts charge across the ring (ligand 13: +0.045 e in one half, −0.047 e in the other), and
+each half has to be forced to its own site average. Result: largest atom change 0.016 e against
+0.002 e, RMS 0.0034 e against 0.00024 e (14×). Proposal: a site should not split atoms whose
+charges move together, and the CRN cost should be part of choosing the core. This belongs with
+(e) and (i). **Open.**
+
+### (l) The site average: per substituent or per ligand?
+
+Legacy averages over the unique fragments at a site (each substituent counts once). msld-prep
+averages over ligands, so a substituent shared by ten ligands counts ten times, and adding a
+duplicate ligand changes every substituent's charges. Since MSLD simulates each unique substituent
+once, per-substituent weighting matches the simulation. Tied to whether msld-prep deduplicates
+fragments at all (lesson 6). **Open.**
+
+### (m) How to spread a correction over a fragment's atoms
+
+Legacy spreads it evenly; msld-prep in proportion to |charge|, which loads highly charged atoms
+(a CF₃ carbon takes 3.4× the even share). Both meet the constraints, and the amount to spread is
+set by the decomposition, so this is the smaller question. To decide: even, proportional, or a
+least-squares fit that keeps each atom closest to its CGenFF charge. **Open.**
