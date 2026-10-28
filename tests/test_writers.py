@@ -61,3 +61,37 @@ def test_downstream_msld_prm_contract(written_outdir, monkeypatch):
     monkeypatch.chdir(CHEMBL_DIR)
     msld_prm.MsldPRM(written_outdir, cgenff=True, verbose=False, debug=False)
     assert os.path.exists(os.path.join(written_outdir, "full_ligand.prm"))
+
+
+def _prm_section_entries(path: str) -> dict[str, int]:
+    sections = ("BONDS", "ANGLES", "DIHEDRALS", "IMPROPERS", "NONBONDED")
+    counts: dict[str, int] = {}
+    current = None
+    with open(path) as handle:
+        for line in handle:
+            words = line.split()
+            if not words or words[0].startswith("!"):
+                continue
+            if words[0] in sections:
+                current = words[0]
+            elif words[0] == "END":
+                current = None
+            elif current:
+                counts[current] = counts.get(current, 0) + 1
+    return counts
+
+
+@pytest.mark.xfail(
+    int(__import__("pandas").__version__.split(".")[0]) >= 3,
+    strict=True,
+    reason="msld_prm fills its bond matrix by chained assignment, which writes nothing under pandas 3, "
+    "so it finds no bonded terms (#17)",
+)
+def test_downstream_msld_prm_finds_bonded_terms(written_outdir, monkeypatch):
+    sys.path.insert(0, LEGACY_REPO_ROOT)
+    import msld_prm
+
+    monkeypatch.chdir(CHEMBL_DIR)
+    msld_prm.MsldPRM(written_outdir, cgenff=True, verbose=False, debug=False)
+    counts = _prm_section_entries(os.path.join(written_outdir, "full_ligand.prm"))
+    assert counts.get("BONDS", 0) and counts.get("ANGLES", 0) and counts.get("DIHEDRALS", 0)
