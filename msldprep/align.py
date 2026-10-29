@@ -42,27 +42,36 @@ def assign_atom_types_from_rtf(mol: Chem.Mol, rtf_path: str) -> None:
     assign_atom_types(mol, rtf_fields["atom_types"], rtf_fields["atom_charges"], source_label=rtf_path)
 
 
-def get_all_atom_types(mols: Sequence[Chem.Mol]) -> dict[str, list[Chem.Atom]]:
-    """Group every atom across `mols` by its CGENFFAtomType."""
-    all_types: dict[str, list[Chem.Atom]] = {}
+def atom_pattern(atom: Chem.Atom) -> tuple[str, tuple[str, ...]]:
+    """An atom's CGenFF type and the sorted CGenFF types of all its neighbors,
+    hydrogens included: legacy `msld_mcs.py` step (i). Two atoms can share a
+    core position only if their patterns are equal (design note (e)), so an
+    atom whose surroundings change between ligands, and with them its charge,
+    is left out of the core."""
+    neighbor_types = sorted(neighbor.GetProp("CGENFFAtomType") for neighbor in atom.GetNeighbors())
+    return atom.GetProp("CGENFFAtomType"), tuple(neighbor_types)
+
+
+def assign_pattern_labels(mols: Sequence[Chem.Mol]) -> dict[tuple[str, tuple[str, ...]], int]:
+    """Label every heavy atom of `mols` with an isotope unique to its
+    `atom_pattern` (starting at 300), and every hydrogen with 0, so the
+    shared-core search can match patterns with `CompareIsotopes` and leave the
+    hydrogens out. The labels are only comparable within one call, so label
+    the whole ligand set, reference included, together.
+
+    Returns the pattern -> isotope_id mapping used, so callers can log/inspect it.
+    """
+    pattern_to_isotope: dict[tuple[str, tuple[str, ...]], int] = {}
     for mol in mols:
         for atom in mol.GetAtoms():
-            all_types.setdefault(atom.GetProp("CGENFFAtomType"), []).append(atom)
-    return all_types
-
-
-def assign_isotope_labels(atom_types: dict[str, list[Chem.Atom]]) -> dict[str, int]:
-    """Assign each atom an isotope label unique to its CGenFF type (starting at 300).
-
-    Returns the type -> isotope_id mapping used, so callers can log/inspect it.
-    """
-    type_to_isotope: dict[str, int] = {}
-    for isotope_id, (cgenff_type, atoms) in enumerate(atom_types.items(), start=300):
-        type_to_isotope[cgenff_type] = isotope_id
-        for atom in atoms:
+            if atom.GetAtomicNum() == 1:
+                atom.SetIsotope(0)
+                continue
+            pattern = atom_pattern(atom)
+            isotope_id = pattern_to_isotope.setdefault(pattern, 300 + len(pattern_to_isotope))
             atom.SetIsotope(isotope_id)
-    logger.debug("Assigned %d isotope labels for CGenFF types", len(type_to_isotope))
-    return type_to_isotope
+    logger.debug("Assigned %d isotope labels for atom patterns", len(pattern_to_isotope))
+    return pattern_to_isotope
 
 
 def load_ligand(
@@ -730,26 +739,36 @@ def align_ligand_set(ligands: Sequence[LigandRecord], reference: LigandRecord) -
 
 
 def find_shared_core(ligands: Sequence[LigandRecord]) -> Chem.Mol:
-    """Find the CGenFF-type-locked maximum common substructure across `ligands`.
+    """Find the maximum common substructure across `ligands` whose atoms have
+    the same `atom_pattern` in every ligand (design note (e)). Heavy atoms only:
+    a core atom's hydrogens enter through its pattern, and `decompose` adds
+    them to the core.
 
-    Requires every ligand to already carry isotope labels (via
-    `assign_isotope_labels(get_all_atom_types(...))`, run over the exact
-    same ligand set, including the reference).
+    A ring may be cut, as legacy cuts it, but ring atoms match ring atoms
+    only. Any bond matches any bond: the CGenFF types already carry
+    aromaticity. Requires every ligand to carry the labels of
+    `assign_pattern_labels`, run over the exact same ligand set, including
+    the reference.
     """
     mols = [ligand.mol for ligand in ligands]
     for ligand in ligands:
         if not any(atom.GetIsotope() for atom in ligand.mol.GetAtoms()):
             msg = (
                 f"Ligand {ligand.name} has no isotope-labeled atoms; run "
-                "assign_isotope_labels(get_all_atom_types(...)) over the full "
-                "ligand set (including the reference) before calling find_shared_core."
+                "assign_pattern_labels(...) over the full ligand set (including "
+                "the reference) before calling find_shared_core."
             )
             logger.error(msg)
             raise AlignmentError(msg)
-    # See align_common_core: explicit Hs make FindMCS combinatorially
-    # explosive, so search heavy-atom-only copies; Chem.RemoveHs preserves
-    # each remaining atom's isotope label, so CompareIsotopes still works.
-    result = FindMCS([Chem.RemoveHs(mol) for mol in mols], atomCompare=AtomCompare.CompareIsotopes, completeRingsOnly=True)
+    # Heavy-atom copies: RemoveAllHs drops every hydrogen (RemoveHs would keep
+    # isotope-labeled ones, #15) and keeps the heavy atoms' labels.
+    result = FindMCS(
+        [Chem.RemoveAllHs(mol) for mol in mols],
+        atomCompare=AtomCompare.CompareIsotopes,
+        bondCompare=BondCompare.CompareAny,
+        ringMatchesRingOnly=True,
+        completeRingsOnly=False,
+    )
     logger.info(
         "Found shared core across %d ligands: %d atoms, %d bonds",
         len(ligands), result.numAtoms, result.numBonds,
@@ -773,7 +792,7 @@ def type_ligands_and_find_core(ligands: Sequence[LigandRecord]) -> Chem.Mol:
     `find_shared_core` outright since RDKit's `FindMCS` requires at least 2
     molecules).
     """
-    isotope_map = assign_isotope_labels(get_all_atom_types([lig.mol for lig in ligands]))
+    isotope_map = assign_pattern_labels([lig.mol for lig in ligands])
     logger.debug("Isotope map for shared core search: %s", isotope_map)
     return find_shared_core(ligands)
 

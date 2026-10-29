@@ -1,10 +1,12 @@
 """Anchor/site/fragment decomposition off a shared core.
 
-`align.find_shared_core` finds the CGenFF-type-locked maximum common
-substructure across a ligand set, but stops there -- it doesn't say which
-atoms attach where. This module does: for each ligand, match the shared
-core, find the core atoms with a substituent hanging off them ("anchors"),
-and assign every remaining atom to the site of its nearest anchor.
+`align.find_shared_core` finds the heavy-atom maximum common substructure
+across a ligand set, atoms matched by CGenFF type and neighbor types
+(design note (e)), but stops there -- it doesn't say which atoms attach
+where. This module does: for each ligand, match the shared core, add each
+core heavy atom's hydrogens to it (design note (i)), find the core atoms
+with a substituent hanging off them ("anchors"), and give each connected
+non-core piece to the site of the anchors it is attached to.
 
 Design choice (see plan): this skips RDKit's `RGroupDecomposition` and goes
 straight to a single isotope-locked substructure match + shortest-path BFS
@@ -18,6 +20,7 @@ anchor-detection order happens to line up.
 
 from __future__ import annotations
 
+import itertools
 import logging
 import warnings
 from typing import Sequence
@@ -83,75 +86,144 @@ def match_core(
     return best, False
 
 
-def _anchor_query_positions(mol: Chem.Mol, core_indices: tuple[int, ...]) -> set[int]:
-    core_set = set(core_indices)
+def _anchor_query_positions(mol: Chem.Mol, heavy_indices: tuple[int, ...], core_set: set[int]) -> set[int]:
+    """Query positions of the core heavy atoms that have a neighbor outside the core."""
     positions = set()
-    for pos, atom_idx in enumerate(core_indices):
+    for pos, atom_idx in enumerate(heavy_indices):
         neighbors = mol.GetAtomWithIdx(atom_idx).GetNeighbors()
         if any(nbr.GetIdx() not in core_set for nbr in neighbors):
             positions.add(pos)
     return positions
 
 
-def _group_anchor_positions(core_query_mol: Chem.Mol, anchor_positions: set[int]) -> list[list[int]]:
-    """Group anchor query-positions that are mutually bonded *within the core query mol*.
+def _hydrogens_by_type(mol: Chem.Mol, atom_idx: int) -> dict[str, list[int]]:
+    hydrogens: dict[str, list[int]] = {}
+    for nbr in mol.GetAtomWithIdx(atom_idx).GetNeighbors():
+        if nbr.GetAtomicNum() == 1:
+            hydrogens.setdefault(nbr.GetProp("CGENFFAtomType"), []).append(nbr.GetIdx())
+    return hydrogens
 
-    Uses the shared core pattern's own bond graph so grouping is identical
-    for every ligand by construction (no per-ligand order dependence).
+
+def _with_core_hydrogens(
+    mol: Chem.Mol, heavy_indices: tuple[int, ...], ref_mol: Chem.Mol, ref_heavy_indices: tuple[int, ...], *, ligand_name: str
+) -> tuple[int, ...]:
+    """The core of `mol`: each matched heavy atom followed by its hydrogens, in
+    the reference's order for that position (design note (i)).
+
+    The pattern rule guarantees a core heavy atom the same number of hydrogens,
+    of the same types, as the reference's; hydrogens of one type are paired
+    with the reference's by 3D distance (the ligands are aligned onto it).
     """
-    remaining = sorted(anchor_positions)
-    groups: list[list[int]] = []
-    consumed: set[int] = set()
-    for pos in remaining:
-        if pos in consumed:
+    ref_conf, conf = ref_mol.GetConformer(), mol.GetConformer()
+    core: list[int] = []
+    for atom_idx, ref_idx in zip(heavy_indices, ref_heavy_indices):
+        core.append(atom_idx)
+        own, ref_own = _hydrogens_by_type(mol, atom_idx), _hydrogens_by_type(ref_mol, ref_idx)
+        if {t: len(h) for t, h in own.items()} != {t: len(h) for t, h in ref_own.items()}:
+            msg = (
+                f"Ligand {ligand_name}'s core atom {mol.GetAtomWithIdx(atom_idx).GetProp('_TriposAtomName')} "
+                "has different hydrogens from the reference's atom at that core position."
+            )
+            logger.error(msg)
+            raise DecompositionError(msg)
+        ref_order = sorted(h for hs in ref_own.values() for h in hs)
+        paired: dict[int, int] = {}
+        for h_type, ref_hs in ref_own.items():
+            best = min(
+                itertools.permutations(own[h_type]),
+                key=lambda perm: sum(
+                    (conf.GetAtomPosition(h) - ref_conf.GetAtomPosition(r)).LengthSq() for h, r in zip(perm, ref_hs)
+                ),
+            )
+            paired.update(zip(ref_hs, best))
+        core.extend(paired[r] for r in ref_order)
+    return tuple(core)
+
+
+def _fragment_components(mol: Chem.Mol, core_set: set[int]) -> list[list[int]]:
+    """The connected pieces of `mol` left when the core is taken out."""
+    components: list[list[int]] = []
+    seen: set[int] = set()
+    for atom in mol.GetAtoms():
+        start = atom.GetIdx()
+        if start in core_set or start in seen:
             continue
-        group = [pos]
-        consumed.add(pos)
-        atom = core_query_mol.GetAtomWithIdx(pos)
-        for nbr in atom.GetNeighbors():
-            nbr_idx = nbr.GetIdx()
-            if nbr_idx in anchor_positions and nbr_idx not in consumed:
-                group.append(nbr_idx)
-                consumed.add(nbr_idx)
-        groups.append(group)
-    return groups
+        component, stack = [], [start]
+        seen.add(start)
+        while stack:
+            idx = stack.pop()
+            component.append(idx)
+            for nbr in mol.GetAtomWithIdx(idx).GetNeighbors():
+                nbr_idx = nbr.GetIdx()
+                if nbr_idx not in core_set and nbr_idx not in seen:
+                    seen.add(nbr_idx)
+                    stack.append(nbr_idx)
+        components.append(sorted(component))
+    return components
+
+
+def _attached_positions(mol: Chem.Mol, component: list[int], heavy_indices: tuple[int, ...]) -> set[int]:
+    """Query positions of the core heavy atoms bonded to `component`."""
+    members = set(component)
+    return {
+        pos for pos, atom_idx in enumerate(heavy_indices)
+        if any(nbr.GetIdx() in members for nbr in mol.GetAtomWithIdx(atom_idx).GetNeighbors())
+    }
+
+
+def _group_anchor_positions(anchor_positions: set[int], joined: list[set[int]]) -> list[list[int]]:
+    """Group anchor query-positions into sites, as legacy `msld_mcs.py` does:
+    anchors share a site when one piece of non-core atoms is attached to all of
+    them in some ligand (`joined`), so a ring cut by the core is one fragment.
+    Separate substituents on neighboring core atoms are separate sites.
+    Grouping is transitive and uses only query positions, so it is the same
+    for every ligand by construction.
+    """
+    parent = {pos: pos for pos in anchor_positions}
+
+    def find(pos: int) -> int:
+        while parent[pos] != pos:
+            parent[pos] = parent[parent[pos]]
+            pos = parent[pos]
+        return pos
+
+    def union(a: int, b: int) -> None:
+        parent[find(a)] = find(b)
+
+    for positions in joined:
+        first, *rest = sorted(positions)
+        for pos in rest:
+            union(first, pos)
+
+    groups: dict[int, list[int]] = {}
+    for pos in sorted(anchor_positions):
+        groups.setdefault(find(pos), []).append(pos)
+    return sorted(groups.values(), key=lambda group: group[0])
 
 
 def assign_fragment_atoms(
-    mol: Chem.Mol, core_local_indices: set[int], anchor_groups_local: list[list[int]]
+    mol: Chem.Mol, core_local_indices: set[int], heavy_indices: tuple[int, ...], anchor_groups_query: list[list[int]]
 ) -> list[list[int]]:
-    """Assign every non-core atom of `mol` to the site of its nearest anchor group.
+    """Assign each non-core piece of `mol` to the site of the anchors it is attached to.
 
-    Ties (equal shortest-path length to two anchor groups) are logged and
-    broken by taking the first (lowest site index) -- legacy did this
-    silently via `np.argmin`; this at least makes it visible.
+    Within a site, atoms are ordered by their shortest-path distance to the
+    site's first anchor.
     """
-    site_atoms: list[list[int]] = [[] for _ in anchor_groups_local]
-    site_paths: list[list[int]] = [[] for _ in anchor_groups_local]
-    representatives = [group[0] for group in anchor_groups_local]
+    site_of_position = {pos: site_idx for site_idx, group in enumerate(anchor_groups_query) for pos in group}
+    site_atoms: list[list[int]] = [[] for _ in anchor_groups_query]
+    for component in _fragment_components(mol, core_local_indices):
+        sites = {site_of_position[pos] for pos in _attached_positions(mol, component, heavy_indices)}
+        if len(sites) != 1:
+            msg = f"A fragment of {len(component)} atoms is attached to sites {sorted(sites)}, not to exactly one."
+            logger.error(msg)
+            raise DecompositionError(msg)
+        site_atoms[sites.pop()].extend(component)
 
-    for atom in mol.GetAtoms():
-        idx = atom.GetIdx()
-        if idx in core_local_indices:
-            continue
-        path_lengths = [
-            len(Chem.rdmolops.GetShortestPath(mol, idx, rep)) for rep in representatives
-        ]
-        min_len = min(path_lengths)
-        tied = [i for i, length in enumerate(path_lengths) if length == min_len]
-        if len(tied) > 1:
-            logger.warning(
-                "Atom idx %d in molecule is equidistant from sites %s; assigning to site %d",
-                idx, tied, tied[0],
-            )
-        site_idx = tied[0]
-        site_atoms[site_idx].append(idx)
-        site_paths[site_idx].append(min_len)
-
-    for site_idx, (atoms, paths) in enumerate(zip(site_atoms, site_paths)):
-        order = sorted(range(len(atoms)), key=lambda i: paths[i])
-        site_atoms[site_idx] = [atoms[i] for i in order]
-
+    for site_idx, atoms in enumerate(site_atoms):
+        representative = heavy_indices[anchor_groups_query[site_idx][0]]
+        site_atoms[site_idx] = sorted(
+            atoms, key=lambda idx: (len(Chem.rdmolops.GetShortestPath(mol, idx, representative)), idx)
+        )
     return site_atoms
 
 
@@ -210,12 +282,15 @@ def decompose_ligand_set(
         logger.error(msg)
         raise DecompositionError(msg)
 
-    ref_indices, _ = match_core(reference.mol, core_query_mol, ligand_name=reference.name)
-    ref_anchor_positions = _anchor_query_positions(reference.mol, ref_indices)
-    ref_off_core_pattern = tuple(pos in ref_anchor_positions for pos in range(len(ref_indices)))
-    anchor_groups_query = _group_anchor_positions(core_query_mol, ref_anchor_positions)
-    nsites = len(anchor_groups_query)
-
+    # `core_query_mol` has heavy atoms only; its matches are heavy-atom indices
+    # in query order, and each core heavy atom's hydrogens are added after it.
+    ref_heavy, _ = match_core(reference.mol, core_query_mol, ligand_name=reference.name)
+    ref_indices = _with_core_hydrogens(reference.mol, ref_heavy, reference.mol, ref_heavy, ligand_name=reference.name)
+    ref_anchor_positions = _anchor_query_positions(reference.mol, ref_heavy, set(ref_indices))
+    ref_off_core_pattern = tuple(
+        any(nbr.GetIdx() not in set(ref_heavy) for nbr in reference.mol.GetAtomWithIdx(idx).GetNeighbors())
+        for idx in ref_heavy
+    )
     core_atom_order = tuple(
         reference.mol.GetAtomWithIdx(idx).GetProp("_TriposAtomName") for idx in ref_indices
     )
@@ -223,15 +298,18 @@ def decompose_ligand_set(
     core_atom_names: dict[str, tuple[str, ...]] = {}
     core_lp_atom_names: dict[str, dict[str, str]] = {}
     tied_core_matches: list[str] = []
-    sites = [Site(index=i) for i in range(nsites)]
 
+    # First pass: each ligand's core, and which anchors each of its non-core pieces joins.
+    matched: list[tuple[LigandRecord, tuple[int, ...], tuple[int, ...]]] = []
+    joined: list[set[int]] = []
     for ligand in ligands:
-        indices, tied = match_core(
+        heavy, tied = match_core(
             ligand.mol, core_query_mol, ligand_name=ligand.name, reference_pattern=ref_off_core_pattern
         )
         if tied:
             tied_core_matches.append(ligand.name)
-        anchor_positions = _anchor_query_positions(ligand.mol, indices)
+        indices = _with_core_hydrogens(ligand.mol, heavy, reference.mol, ref_heavy, ligand_name=ligand.name)
+        anchor_positions = _anchor_query_positions(ligand.mol, heavy, set(indices))
         if anchor_positions != ref_anchor_positions:
             msg = (
                 f"Ligand {ligand.name}'s substitution pattern ({sorted(anchor_positions)}) "
@@ -240,17 +318,27 @@ def decompose_ligand_set(
             )
             logger.error(msg)
             raise DecompositionError(msg)
+        matched.append((ligand, heavy, indices))
+        joined.extend(
+            _attached_positions(ligand.mol, component, heavy)
+            for component in _fragment_components(ligand.mol, set(indices))
+        )
 
+    anchor_groups_query = _group_anchor_positions(ref_anchor_positions, joined)
+    nsites = len(anchor_groups_query)
+    sites = [Site(index=i) for i in range(nsites)]
+
+    # Second pass: each ligand's fragments, one per site.
+    for ligand, heavy, indices in matched:
         names = tuple(
             ligand.mol.GetAtomWithIdx(idx).GetProp("_TriposAtomName") for idx in indices
         )
         core_atom_names[ligand.name] = names
-        core_local_index_set = set(indices)
 
         anchor_groups_local = [
-            [indices[pos] for pos in group] for group in anchor_groups_query
+            [heavy[pos] for pos in group] for group in anchor_groups_query
         ]
-        site_atom_indices = assign_fragment_atoms(ligand.mol, core_local_index_set, anchor_groups_local)
+        site_atom_indices = assign_fragment_atoms(ligand.mol, set(indices), heavy, anchor_groups_query)
 
         ligand_fragments = []
         for site_idx, atom_indices in enumerate(site_atom_indices):

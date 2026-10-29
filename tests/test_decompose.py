@@ -72,13 +72,57 @@ def test_decompose_raises_on_inconsistent_substitution_pattern(all_ligands, prep
     real_positions = decompose_mod._anchor_query_positions
     call_count = {"n": 0}
 
-    def fake_positions(mol, core_indices):
+    def fake_positions(*args):
         call_count["n"] += 1
         # corrupt the result for the 2nd ligand processed (not the reference)
         if call_count["n"] == 2:
             return set()
-        return real_positions(mol, core_indices)
+        return real_positions(*args)
 
     monkeypatch.setattr(decompose_mod, "_anchor_query_positions", fake_positions)
     with pytest.raises(DecompositionError):
         decompose_mod.decompose_ligand_set(all_ligands, prepared_ligand_set.core_query_mol, "11896")
+
+
+def _heavy(names):
+    return {name for name in names if not name.startswith("H")}
+
+
+def test_the_core_follows_the_legacy_neighbor_type_rule(raw_decomposition):
+    # An atom is core only if its CGenFF type and its neighbors' types match in every
+    # ligand (design note (e)). The legacy msld_mcs.MsldMCS run on these four ligands
+    # (2026-10-29) gives exactly this heavy-atom core for the reference; the benzo-ring
+    # carbons whose substituents differ between ligands are left out.
+    assert _heavy(raw_decomposition.core_atom_order) == {"N009", "C010", "N011", "C012", "C016", "C017"}
+
+
+def test_core_hydrogens_follow_their_heavy_atom_and_no_site_is_only_hydrogens(all_ligands, raw_decomposition):
+    # design note (i), #15
+    for ligand in all_ligands:
+        core = set(raw_decomposition.core_atom_names[ligand.name])
+        for atom in ligand.mol.GetAtoms():
+            if atom.GetAtomicNum() == 1:
+                heavy = atom.GetNeighbors()[0].GetProp("_TriposAtomName")
+                assert (atom.GetProp("_TriposAtomName") in core) == (heavy in core), ligand.name
+        for site in raw_decomposition.sites:
+            assert _heavy(site.fragments[ligand.name].atom_names), f"site {site.index} of {ligand.name} has only hydrogens"
+
+
+def test_a_core_position_has_the_same_atom_type_in_every_ligand(all_ligands, raw_decomposition):
+    by_name = {ligand.name: ligand for ligand in all_ligands}
+    for position in range(len(raw_decomposition.core_atom_order)):
+        types = {
+            by_name[name].atom_types[names[position]] for name, names in raw_decomposition.core_atom_names.items()
+        }
+        assert len(types) == 1, (raw_decomposition.core_atom_order[position], types)
+
+
+def test_sites_are_the_connected_fragments_legacy_finds(raw_decomposition):
+    # The core cuts the benzo ring of the quinazoline, so C013-C015 is one piece attached at
+    # C012 and C016: one site, not split by anchor. The legacy msld_mcs.MsldMCS run on these
+    # four ligands (2026-10-29) gives exactly these two reference fragments.
+    fragments = [set(site.fragments["11896"].atom_names) for site in raw_decomposition.sites]
+    assert fragments == [
+        {"C008", "N007", "H022", "C006", "C018", "H028", "C002", "C003", "H019", "C004", "H020", "C005", "H021", "I001"},
+        {"C013", "H024", "C014", "H025", "C015", "H026"},
+    ]

@@ -564,10 +564,6 @@ def test_a_stereoisomer_limit_of_one_still_gives_an_alignment():
     assert result.atom_map and analog.GetNumConformers() == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#15: RemoveHs keeps isotope-labeled hydrogens, so find_shared_core searches with every hydrogen",
-)
 def test_the_shared_core_search_leaves_hydrogens_out():
     ligands = [
         align.load_ligand(
