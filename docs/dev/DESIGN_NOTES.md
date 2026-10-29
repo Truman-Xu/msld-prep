@@ -228,3 +228,15 @@ Legacy spreads it evenly; msld-prep in proportion to |charge|, which loads highl
 (a CF₃ carbon takes 3.4× the even share). Both meet the constraints, and the amount to spread is
 set by the decomposition, so this is the smaller question. To decide: even, proportional, or a
 least-squares fit that keeps each atom closest to its CGenFF charge. **Open.**
+
+## From lesson 4
+
+### (n) A site attached at two points: anchors in the core or in the fragments?
+
+On FAAH 1, 13, 31 the fragment is attached to the core at two atoms (`C008`, `C013`; legacy's anchor
+`DUM`). Legacy moves an anchor into the fragments only when it is a single atom
+(`msld_crn.py:253`), so these stay in the core (core 31 atoms, ligand 1's fragment 8). msld-prep
+moves every anchor out (`apply_manual_overrides`; core 28, fragment 11). Both can be overridden
+(`AnCore` / `an_core`). Moving anchors out gives each substituent its own charges at the attachment;
+keeping them makes the shared core bigger. Here their charges barely differ between ligands
+(lesson 3: `C008` 0.008/0.005/0.008, `C013` −0.121/−0.120/−0.120). **Open.**
