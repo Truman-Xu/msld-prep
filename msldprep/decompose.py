@@ -25,6 +25,7 @@ import logging
 import warnings
 from typing import Sequence
 
+import numpy as np
 from rdkit import Chem
 
 from .datamodel import CoreDecomposition, Fragment, LigandRecord, Site
@@ -33,57 +34,95 @@ from .errors import DecompositionError
 logger = logging.getLogger(__name__)
 
 
-def match_core(
-    mol: Chem.Mol,
-    core_query: Chem.Mol,
-    *,
-    ligand_name: str,
-    reference_pattern: tuple[bool, ...] | None = None,
-) -> tuple[tuple[int, ...], bool]:
-    """Return the atom-index tuple (in query-atom order) where `mol` matches `core_query`,
-    plus whether that match was an ambiguous tie resolved by picking the first candidate.
+_MAX_PLACEMENTS = 1000  # cap on the ways the core query is matched onto one ligand
+_PLACEMENT_TIE = 1e-3  # angstrom: placements this close in RMSD count as equally good
+FAR_FROM_REFERENCE = 1.1  # angstrom: a core atom farther than this from the reference's is flagged (legacy's cutoff)
 
-    If more than one match exists (a genuinely symmetric core), picks the
-    match whose off-core-neighbor pattern is closest to `reference_pattern`
-    and warns; if still tied, warns and picks the first candidate instead of
-    raising -- callers should surface `tied=True` to the user (e.g. via an
-    annotated `io_mcs_text` export) since the choice is arbitrary.
-    """
-    matches = mol.GetSubstructMatches(core_query, uniquify=True)
+
+def _placements(mol: Chem.Mol, core_query: Chem.Mol, *, ligand_name: str) -> tuple[tuple[tuple[int, ...], ...], np.ndarray]:
+    """Every way `core_query` matches `mol` (atom indices in query order), and
+    their coordinates as an array of shape (placements, atoms * 3)."""
+    matches = mol.GetSubstructMatches(core_query, uniquify=False, maxMatches=_MAX_PLACEMENTS)
     if not matches:
         msg = f"Ligand {ligand_name} does not contain the shared core substructure."
         logger.error(msg)
         raise DecompositionError(msg)
-    if len(matches) == 1 or reference_pattern is None:
-        return matches[0], False
+    if mol.GetNumConformers() == 0:
+        msg = f"Ligand {ligand_name} has no coordinates; the core is placed by 3D position."
+        logger.error(msg)
+        raise DecompositionError(msg)
+    positions = mol.GetConformer().GetPositions()
+    return matches, np.array([positions[list(match)].ravel() for match in matches])
 
-    def off_core_pattern(match: tuple[int, ...]) -> tuple[bool, ...]:
-        match_set = set(match)
-        return tuple(
-            any(nbr.GetIdx() not in match_set for nbr in mol.GetAtomWithIdx(idx).GetNeighbors())
-            for idx in match
-        )
 
-    scored = sorted(
-        matches,
-        key=lambda m: sum(a != b for a, b in zip(off_core_pattern(m), reference_pattern)),
-    )
-    best, second = scored[0], scored[1]
-    if off_core_pattern(best) == off_core_pattern(second):
+def _squared_distances(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Summed squared distances between every row of `a` and every row of `b`."""
+    return np.maximum((a * a).sum(1)[:, None] + (b * b).sum(1)[None, :] - 2.0 * a @ b.T, 0.0)
+
+
+def choose_core_placements(
+    ligands: Sequence[LigandRecord], core_query: Chem.Mol, reference_name: str
+) -> tuple[dict[str, tuple[int, ...]], list[str]]:
+    """Where the core sits on each ligand, chosen by 3D position (design note (f)).
+
+    A symmetric core, or a symmetric ligand, can be matched in several ways.
+    Each ligand takes the placement closest to the reference's, and the
+    reference takes the placement that brings every ligand's choice closest
+    to it. Positions only choose among placements; they never remove an atom
+    from the core. Returns the placement (heavy-atom indices in query order)
+    per ligand name, and the ligands with two placements equally close to the
+    reference's.
+    """
+    found = {lig.name: _placements(lig.mol, core_query, ligand_name=lig.name) for lig in ligands}
+    ref_matches, ref_xyz = found[reference_name]
+    n_atoms = core_query.GetNumAtoms()
+    totals = np.zeros(len(ref_matches))
+    for name, (_, xyz) in found.items():
+        if name != reference_name:
+            totals += np.sqrt(_squared_distances(ref_xyz, xyz).min(1) / n_atoms)
+    # Placements of the reference that tie here differ by a symmetry every ligand
+    # shares (a phenyl flipped in all of them), so they pair atoms the same way.
+    ref_choice = int(np.argmin(totals))
+    tied = []
+
+    chosen = {reference_name: ref_matches[ref_choice]}
+    for name, (matches, xyz) in found.items():
+        if name == reference_name:
+            continue
+        rmsd = np.sqrt(_squared_distances(ref_xyz[ref_choice : ref_choice + 1], xyz)[0] / n_atoms)
+        ranked = np.argsort(rmsd, kind="stable")
+        chosen[name] = matches[int(ranked[0])]
+        if len(ranked) > 1 and rmsd[ranked[1]] - rmsd[ranked[0]] < _PLACEMENT_TIE:
+            tied.append(name)
+    for name in tied:
         warnings.warn(
-            f"Ligand {ligand_name} has {len(matches)} ambiguous core matches with "
-            "identical anchor patterns; picked the first one arbitrarily. Review "
-            "this ligand's CORE line in the exported MCS_for_MSLD.txt (flagged there "
-            "with a comment).",
+            f"Ligand {name}: the core fits it equally well in more than one way; picked one. Review "
+            "this ligand's CORE line in the exported MCS_for_MSLD.txt (flagged there with a comment).",
             stacklevel=2,
         )
-        return best, True
-    warnings.warn(
-        f"Ligand {ligand_name} has {len(matches)} core matches; picked the one whose "
-        "anchor pattern best matches the reference ligand.",
-        stacklevel=2,
-    )
-    return best, False
+    return chosen, tied
+
+
+def far_core_atoms(
+    ligands: Sequence[LigandRecord], placements: dict[str, tuple[int, ...]], reference_name: str
+) -> dict[str, list[str]]:
+    """Per ligand, the names of its core heavy atoms more than
+    `FAR_FROM_REFERENCE` from the matching reference atom: a pose worth a look
+    (design note (f)). Such atoms stay in the core."""
+    by_name = {lig.name: lig for lig in ligands}
+    ref_xyz = by_name[reference_name].mol.GetConformer().GetPositions()[list(placements[reference_name])]
+    far: dict[str, list[str]] = {}
+    for name, placement in placements.items():
+        mol = by_name[name].mol
+        distances = np.linalg.norm(mol.GetConformer().GetPositions()[list(placement)] - ref_xyz, axis=1)
+        names = [mol.GetAtomWithIdx(placement[i]).GetProp("_TriposAtomName") for i in np.flatnonzero(distances > FAR_FROM_REFERENCE)]
+        if names:
+            far[name] = names
+            logger.warning(
+                "Ligand %s: core atom(s) %s lie more than %.1f A from the reference's; kept in the core, "
+                "but check the pose.", name, ", ".join(names), FAR_FROM_REFERENCE,
+            )
+    return far
 
 
 def _anchor_query_positions(mol: Chem.Mol, heavy_indices: tuple[int, ...], core_set: set[int]) -> set[int]:
@@ -282,32 +321,25 @@ def decompose_ligand_set(
         logger.error(msg)
         raise DecompositionError(msg)
 
-    # `core_query_mol` has heavy atoms only; its matches are heavy-atom indices
-    # in query order, and each core heavy atom's hydrogens are added after it.
-    ref_heavy, _ = match_core(reference.mol, core_query_mol, ligand_name=reference.name)
+    # `core_query_mol` has heavy atoms only; its placements are heavy-atom
+    # indices in query order, and each core heavy atom's hydrogens are added after it.
+    placements, tied_core_matches = choose_core_placements(ligands, core_query_mol, reference_name)
+    far = far_core_atoms(ligands, placements, reference_name)
+    ref_heavy = placements[reference_name]
     ref_indices = _with_core_hydrogens(reference.mol, ref_heavy, reference.mol, ref_heavy, ligand_name=reference.name)
     ref_anchor_positions = _anchor_query_positions(reference.mol, ref_heavy, set(ref_indices))
-    ref_off_core_pattern = tuple(
-        any(nbr.GetIdx() not in set(ref_heavy) for nbr in reference.mol.GetAtomWithIdx(idx).GetNeighbors())
-        for idx in ref_heavy
-    )
     core_atom_order = tuple(
         reference.mol.GetAtomWithIdx(idx).GetProp("_TriposAtomName") for idx in ref_indices
     )
 
     core_atom_names: dict[str, tuple[str, ...]] = {}
     core_lp_atom_names: dict[str, dict[str, str]] = {}
-    tied_core_matches: list[str] = []
 
     # First pass: each ligand's core, and which anchors each of its non-core pieces joins.
     matched: list[tuple[LigandRecord, tuple[int, ...], tuple[int, ...]]] = []
     joined: list[set[int]] = []
     for ligand in ligands:
-        heavy, tied = match_core(
-            ligand.mol, core_query_mol, ligand_name=ligand.name, reference_pattern=ref_off_core_pattern
-        )
-        if tied:
-            tied_core_matches.append(ligand.name)
+        heavy = placements[ligand.name]
         indices = _with_core_hydrogens(ligand.mol, heavy, reference.mol, ref_heavy, ligand_name=ligand.name)
         anchor_positions = _anchor_query_positions(ligand.mol, heavy, set(indices))
         if anchor_positions != ref_anchor_positions:
@@ -376,6 +408,7 @@ def decompose_ligand_set(
         core_lp_atom_names=core_lp_atom_names,
         sites=sites,
         tied_core_matches=tied_core_matches,
+        far_core_atoms=far,
         core_id=core_id,
     )
 
@@ -517,5 +550,6 @@ def apply_manual_overrides(
         core_lp_atom_names=new_core_lp_atom_names,
         sites=new_sites,
         tied_core_matches=decomposition.tied_core_matches,
+        far_core_atoms=decomposition.far_core_atoms,
         core_id=decomposition.core_id,
     )

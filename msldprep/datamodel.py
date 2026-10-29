@@ -236,9 +236,12 @@ class CoreDecomposition:
     # host core atom name (in core_atom_order) -> {ligand_name: this ligand's LP atom name}
     core_lp_atom_names: dict[str, dict[str, str]] = field(default_factory=dict)
     sites: list[Site] = field(default_factory=list)
-    # names of ligands whose core match was an ambiguous tie (identical anchor
-    # pattern across >1 candidate match), resolved by picking the first one
+    # names of ligands the core fits equally well in more than one way, in 3D
+    # (`decompose.choose_core_placements`); one of the ways was picked
     tied_core_matches: list[str] = field(default_factory=list)
+    # ligand name -> its core heavy atoms more than `decompose.FAR_FROM_REFERENCE`
+    # from the reference's: kept in the core, flagged for a look (design note (f))
+    far_core_atoms: dict[str, list[str]] = field(default_factory=dict)
     # which core group this decomposition belongs to, when a ligand set was
     # split by grouping.group_ligands_by_similarity (see io_mcs_text's "CORE
     # ID" sections); 1 for the single-group case, which is also the default

@@ -126,3 +126,72 @@ def test_sites_are_the_connected_fragments_legacy_finds(raw_decomposition):
         {"C008", "N007", "H022", "C006", "C018", "H028", "C002", "C003", "H019", "C004", "H020", "C005", "H021", "I001"},
         {"C013", "H024", "C014", "H025", "C015", "H026"},
     ]
+
+
+def _toy_ligand(name, mol):
+    from types import SimpleNamespace
+
+    for atom in mol.GetAtoms():
+        atom.SetProp("_TriposAtomName", f"{atom.GetSymbol()}{atom.GetIdx() + 1:03d}")
+    return SimpleNamespace(name=name, mol=mol)
+
+
+def _chlorobenzene_pair():
+    """A 3D chlorobenzene and a copy with its atoms renumbered (same coordinates)."""
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    reference = Chem.AddHs(Chem.MolFromSmiles("Clc1ccccc1"))
+    AllChem.EmbedMolecule(reference, randomSeed=7)
+    order = list(range(reference.GetNumAtoms()))[::-1]
+    return reference, Chem.RenumberAtoms(reference, order)
+
+
+def test_the_core_is_placed_by_3d_position_not_by_atom_order():
+    # design note (f): a benzene core fits each ring 12 ways; the one chosen must pair
+    # every core atom with the reference atom at the same place.
+    import numpy as np
+    from rdkit import Chem
+    import msldprep.decompose as decompose_mod
+
+    reference, analog = _chlorobenzene_pair()
+    ligands = [_toy_ligand("ref", reference), _toy_ligand("analog", analog)]
+    placements, tied = decompose_mod.choose_core_placements(ligands, Chem.MolFromSmarts("c1ccccc1"), "ref")
+    ref_xyz = reference.GetConformer().GetPositions()[list(placements["ref"])]
+    analog_xyz = analog.GetConformer().GetPositions()[list(placements["analog"])]
+    assert np.allclose(ref_xyz, analog_xyz) and tied == []
+
+
+def test_core_atoms_far_from_the_reference_are_flagged_not_dropped():
+    from rdkit import Chem
+    from rdkit.Geometry import Point3D
+    import msldprep.decompose as decompose_mod
+
+    reference, analog = _chlorobenzene_pair()
+    ring_atom = next(a.GetIdx() for a in analog.GetAtoms() if a.GetIsAromatic())
+    p = analog.GetConformer().GetAtomPosition(ring_atom)
+    analog.GetConformer().SetAtomPosition(ring_atom, Point3D(p.x + 2.0, p.y, p.z))
+    ligands = [_toy_ligand("ref", reference), _toy_ligand("analog", analog)]
+    placements, _ = decompose_mod.choose_core_placements(ligands, Chem.MolFromSmarts("c1ccccc1"), "ref")
+    far = decompose_mod.far_core_atoms(ligands, placements, "ref")
+    assert far == {"analog": [analog.GetAtomWithIdx(ring_atom).GetProp("_TriposAtomName")]}
+    assert ring_atom in placements["analog"]  # still placed in the core
+
+
+def test_decomposition_keeps_a_far_core_atom_and_records_it(all_ligands, prepared_ligand_set, raw_decomposition):
+    import dataclasses
+    from rdkit import Chem
+    from rdkit.Geometry import Point3D
+    import msldprep.decompose as decompose_mod
+
+    analog = all_ligands[1]
+    moved_name = raw_decomposition.core_atom_names[analog.name][0]
+    mol = Chem.Mol(analog.mol)
+    idx = next(a.GetIdx() for a in mol.GetAtoms() if a.GetProp("_TriposAtomName") == moved_name)
+    p = mol.GetConformer().GetAtomPosition(idx)
+    mol.GetConformer().SetAtomPosition(idx, Point3D(p.x, p.y + 2.0, p.z))
+    ligands = [dataclasses.replace(analog, mol=mol) if lig is analog else lig for lig in all_ligands]
+    result = decompose_mod.decompose_ligand_set(ligands, prepared_ligand_set.core_query_mol, "11896")
+    assert raw_decomposition.far_core_atoms == {}
+    assert result.far_core_atoms == {analog.name: [moved_name]}
+    assert result.core_atom_names == raw_decomposition.core_atom_names
