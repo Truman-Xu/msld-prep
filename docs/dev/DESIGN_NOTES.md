@@ -87,23 +87,83 @@ Legacy: same CGenFF type, same neighbor types, and (for ties) the same position,
 msld-prep: same CGenFF type in a whole-ring graph MCS. The legacy rule moves a ring carbon whose
 substituent changes into the fragment (its charge differs a lot, −0.115 vs +0.063). msld-prep keeps
 it in the core and leaves the difference to CRN. Lesson 3 should measure what each costs in charge
-changes. **Open.**
+changes.
+
+**Verdict 2026-10-29: adopted, the legacy rule.** An atom is a core atom only if its CGenFF type and
+the types of all its neighbors (hydrogens included) are the same in every ligand; an atom whose
+neighbor has a different type is dropped. Reason: an atom whose surroundings change also changes its
+charge, so the rule keeps such atoms out of the core. In lesson 3 the legacy core needed almost no
+charge correction (2 of 31 positions differed).
+
+**How:** on top of RDKit's `FindMCS`, not as a port of the legacy algorithm. Each heavy atom is
+labeled with its pattern (own type plus the sorted types of its neighbors), and `FindMCS` matches the
+labels on heavy-atom copies (`CompareIsotopes`, any bond matches any bond, `ringMatchesRingOnly=True`,
+`completeRingsOnly=False` so a ring can be cut as legacy cuts it). Where the core fits a ligand in
+several ways, the placement that agrees best in 3D over all ligands is taken. Prototype
+`scripts/pattern_mcs.py` in the owner's vault (2026-10-29, on public FAAH copies): ligands 13, 31, 1
+give legacy's heavy-atom core exactly in 0.01 s; all 32 give legacy's core plus the 5 positions
+legacy dropped by distance, in 0.02 s. One difference from legacy: `FindMCS` keeps one connected
+core, so an atom that changes in the middle of the molecule cuts off the smaller side, where legacy
+could keep both.
 
 ### (f) Positions: a check, not a definition
 
 The legacy core depends on the input conformers: a rotated phenyl in 17 of 32 FAAH poses makes a
 one-substituent site. Proposal: decide the core by chemistry, and use positions to flag poor fits
-for the person to look at. **Open.**
+for the person to look at.
+
+**Verdict 2026-10-29: adopted.** Atoms that match by (e) stay in the core even when they lie more
+than 1.1 Å from the reference in an input pose; the pose is flagged for the person to look at.
+Positions are used only to choose among equivalent placements. Reason: on all 32 FAAH ligands the
+legacy distance cut removes 5 positions that match by chemistry (one ortho carbon, up to 2.34 Å off
+in 6 ligands; four CH of a phenyl that is rotated in many input poses, up to 2.23 Å), and
+msld-prep's alignment puts the core exactly on the reference anyway.
 
 ### (g) Flag what needs judgement
 
 Adding ligands can shrink the core. A site with one substituent, or a core that shrinks when one
-ligand is added, should be reported with the ligand that caused it. **Open.**
+ligand is added, should be reported with the ligand that caused it.
+
+**Verdict 2026-10-29: adopted, and extended.** These cases are flagged. What is really wanted is an
+algorithm that **proposes several common cores for a pool of diverse analogs**, each with its own
+member analogs, under a **cutoff on the percent of each member's atoms that the proposed core
+covers**. An analog joins a core only if that core covers at least the cutoff of it; an analog no
+core covers well enough gets a core of its own or is reported as left out. Reason: one core forced
+over a diverse pool shrinks to whatever survives everywhere, and the coverage cutoff states directly
+what makes a core worth sharing.
+
+msld-prep today (`grouping.group_ligands_by_similarity`) splits the pool **before** any core is
+found, by whole-molecule similarity (Morgan radius-2 fingerprints, Tanimoto ≥ 0.7): the reference's
+group first, then groups seeded greedily among the rest. Fingerprint similarity only stands in for
+what the owner wants; the cutoff should be measured on the core itself. Fingerprints may still serve
+as a fast first guess.
+
+**Decided 2026-10-29:**
+
+- **Coverage counts heavy atoms only:** the core's heavy atoms divided by the analog's heavy atoms.
+- **Cutoff 0.7 by default.** Alternatively the person gives the **number of common cores** wanted,
+  instead of a cutoff.
+- **An analog may appear in several proposals.** An option makes the proposals **unique**: each
+  analog stays only in the proposal whose core covers it best (highest percent overlap).
+- **Search by growing:** a proposal grows by adding analogs while every member stays at or above the
+  cutoff; when no analog can be added, the next proposal starts.
+- The cores follow the pattern rule of (e).
+
+**Left for the implementation:** how a growing proposal picks its seed and the next analog to add;
+how growing meets a requested number of cores (which proposals are kept, and what happens to
+analogs none of them covers); how the unique option breaks a tie in coverage.
 
 ### (h) No keyboard prompts or `quit()` in library code
 
 Legacy stops and asks with `input()` for an ambiguous atom, or exits. In the re-design an ambiguity
-is part of the report (g), decided in the GUI or by an override (b2). **Open.**
+is part of the report (g), decided in the GUI or by an override (b2).
+
+**Verdict 2026-10-29: adopted.** No `input()`, `quit()` or `sys.exit()` in library code. The GUI may
+prompt for a decision. The script path follows (b): the run goes on until a decision is really
+needed, then stops with a report of what to decide (b3), and the decision is given as code or config
+and recorded (b2). A `strict=False` run continues with warnings. Library code raises a typed error
+for that stop, never ends the process. Reason: a prompt or an exit inside the library breaks the
+GUI, scripts and notebooks alike, and leaves no record of what was decided.
 
 ### (i) Which hydrogens belong to the core? (raised by #15)
 
@@ -117,7 +177,13 @@ Proposal: search heavy atoms only, then apply an explicit rule. The hydrogens of
 are core when that atom carries the same number of hydrogens, of the same type, in every ligand.
 Otherwise the atom is an anchor and its hydrogens join the fragment attached there. No
 hydrogen-only sites. Whether a type mismatch should instead push the heavy atom out of the core,
-as the legacy neighbor-type rule does, belongs to (e). **Open.**
+as the legacy neighbor-type rule does, belongs to (e).
+
+**Settled 2026-10-29 as a consequence of (e).** The search runs on heavy atoms only, and a heavy
+atom's pattern includes its hydrogens' types. So a core heavy atom carries the same number of
+hydrogens, of the same types, in every ligand, and **its hydrogens are core**. A heavy atom whose
+hydrogens differ in number or type does not match, so it and its hydrogens go to the fragment. No
+hydrogen-only sites. This also gives the fix of #15 its direction.
 
 ## From lesson 3
 
