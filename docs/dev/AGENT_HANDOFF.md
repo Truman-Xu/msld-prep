@@ -110,7 +110,7 @@ Follow these unless the owner says otherwise in your own session.
 | Date | Instruction | Tag |
 | --- | --- | --- |
 | 2026-10-29 | **Design verdicts (g), (h):** (g) adopted and extended: flag shrinking cores and one-substituent sites, and design an algorithm that proposes several common cores for a diverse pool, each member covered by its core above a percent-of-atoms cutoff (today's `grouping.group_ligands_by_similarity` uses fingerprint similarity instead); details decided the same day: coverage on heavy atoms, cutoff 0.7 by default or a requested number of cores, analogs may be in several proposals with an option for unique ones (each analog in its best-covering core), search by growing; (h) adopted: no `input()`/`quit()` in library code, the GUI may prompt, the script path follows (b) (stop with a report and a typed error, decision as code or config). Not implemented yet. The notes (e) to (i) were committed and pushed at the owner's request (that permission covered that push only). | `[told]` |
-| 2026-10-29 | **Design verdicts (e), (f), (i):** (e) adopted: the legacy neighbor-type rule defines core atoms, implemented on `FindMCS` with pattern labels (prototype `scripts/pattern_mcs.py` in the owner's vault); (f) adopted: atoms more than 1.1 Å off in an input pose stay in the core and the pose is flagged; (i) settled by (e): a core heavy atom's hydrogens are core. Details in `docs/dev/DESIGN_NOTES.md`. Not implemented in msld-prep yet. | `[told]` |
+| 2026-10-29 | **Design verdicts (e), (f), (i):** (e) adopted: the legacy neighbor-type rule defines core atoms, implemented on `FindMCS` with pattern labels (prototype `scripts/pattern_mcs.py` in the owner's vault); (f) adopted: atoms more than 1.1 Å off in an input pose stay in the core and the pose is flagged; (i) settled by (e): a core heavy atom's hydrogens are core. Details in `docs/dev/DESIGN_NOTES.md`. **Implemented 2026-10-29** (`fd6cbaa` (e), (i), #15; `b003554` (f)). **Sites are legacy's:** one connected non-core piece per site, so separate substituents on neighboring core atoms are separate sites (confirmed by the owner the same day). | `[told]` |
 | 2026-10-28 | **#1 is a flag, not a filter:** with `check_protonation` on, the alignment is unchanged and the differing core atoms are reported (not excluded from the core, not a refused analog). Done, `248b646`. | `[told]` |
 | 2026-10-28 | **#10 as written:** only names an atom already has are kept (a mol2 reference); analog core atoms do not inherit the reference's names. Done, `25d4299`. **#15 stays parked** until the re-design settles the core-hydrogen rule. | `[told]` |
 | 2026-10-28 | Make the commits (#1, #10, #16 test) and push; later, commit and push the #17 test and the lesson-3 docs (each permission covered that push only). Then lesson 3. | `[told]` |
@@ -251,7 +251,8 @@ github:
            "#11 alignment embeds an arbitrary one of several equivalent symmetric matches (created 2026-10-14; was P-1 in the log entries of that day)",
            "#12 (remove the Uncharger option), #13 (MCS time limit) and #11 (symmetric orientation) closed by commits 2026-10-16; #5 to #7 closed as built; #2 partly done (alignment only); #14 speed-up ideas open, the owner decides on 2026-10-19 whether to work on it",
            "#9 alignment fails with \"molecule doesn't match the core\" when the reference has a charged atom (created 2026-10-14; closed by e670117 the same day)"]
-  open_issues_2026-10-28: ["#8", "#14 (postponed)", "#15 (parked)", "#16 (new: mol2 reference without hydrogens)", "#17 (new: msld_prm contract test vacuous under pandas 3)"]   # #1 and #10 closed 2026-10-28
+  commits_2026-10-29: 4f02e6d (design verdicts), fd6cbaa ((e), (i), Closes #15), b003554 ((f)), then the docs commit; all pushed at the owner's request
+  open_issues_2026-10-28: ["#8", "#14 (postponed)", "#15 (closed 2026-10-29 by fd6cbaa)", "#16 (new: mol2 reference without hydrogens)", "#17 (new: msld_prm contract test vacuous under pandas 3)"]   # #1 and #10 closed 2026-10-28
   labels_created: [correctness, gui]    # on top of GitHub's defaults
   milestones: none                 # wait for ROADMAP.md
 tracked:
@@ -284,8 +285,8 @@ not_written_on_purpose:
   - docs/dev/ROADMAP.md
   - docs/dev/NOTES.md
   - CI workflow
-test_suite: {passed: 237, skipped: 0, xfailed: 3, date: 2026-10-28, env: crimm-dev, tool variables: set}   # xfails: #15, #16, #17
-test_suite_without_tool_variables: {passed: 179, skipped: 58, xfailed: 3, date: 2026-10-28}
+test_suite: {passed: 245, skipped: 0, xfailed: 2, date: 2026-10-29, env: crimm-dev, tool variables: set}   # xfails: #16, #17
+test_suite_without_tool_variables: {passed: 187, skipped: 58, xfailed: 2, date: 2026-10-29}
 env: crimm-dev                     # no separate env file
 crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul
 directory: /home/ziqiaoxu/msld-prep   # /home/ziqiaoxu/msld-prep-tools is a symlink to it (G11)
@@ -342,6 +343,40 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-10-29 claude-opus/claude-code/core-rule-e-f
+
+- asked: define "candidate"; draw FAAH 1, 13, 31 with atom names (vault lesson 2); can the legacy
+  neighbor-type rule run on `FindMCS`; record verdicts (e) to (i); build (e) and (f), fix #15.
+  `[told 2026-10-29]`
+- did: prototype `scripts/pattern_mcs.py` (vault); design notes (e) to (i) with verdicts, both copies
+  (`4f02e6d`, pushed). `fd6cbaa`: `align.atom_pattern`, `assign_pattern_labels` (replace
+  `get_all_atom_types`/`assign_isotope_labels`), `find_shared_core` on `RemoveAllHs` copies
+  (`CompareIsotopes`, `CompareAny` bonds, `ringMatchesRingOnly`, rings may be cut); `decompose` adds
+  core hydrogens (`_with_core_hydrogens`) and makes sites the connected non-core pieces
+  (`_fragment_components`, `_group_anchor_positions`, `assign_fragment_atoms`). `b003554`:
+  `choose_core_placements` (3D) replaces `match_core`; `far_core_atoms`, field
+  `CoreDecomposition.far_core_atoms`.
+- verified `[ran]`: full suite 245 passed, 2 xfailed (tool variables set); 187 passed, 58 skipped
+  without. ChEMBL 4 ligands: core {N009 C010 N011 C012 C016 C017} + 2 H and two sites, **identical to
+  legacy `msld_mcs` on the same files**. FAAH 1, 13, 31: core 18 heavy + 13 H, one site
+  (C009-C012), as legacy; core search 39 s → 0.01 s. FAAH 32 from input poses: legacy core + the 5
+  positions legacy dropped by distance, one site, 21 ligands flagged in `far_core_atoms`.
+- changed output (AGENTS: "a change to what is written"): cores, sites and core atom order change for
+  any series (hydrogens now follow their heavy atom in the core order); file formats are unchanged.
+  **Behavior change beyond the verdicts:** separate substituents on neighboring core atoms are now
+  separate sites (legacy's rule); before, bonded anchors shared a site. **Confirmed by the owner
+  2026-10-29** after seeing the ring-cut pictures ("the correct way to deal with it").
+- not done: the checkpoint's `# TIE` comment (`io_mcs_text`) still says "identical anchor pattern;
+  first match picked", and `far_core_atoms` is not written to `MCS_for_MSLD.txt` or shown anywhere but
+  the log; both are output changes for the owner to decide. Not run: the CLI or `run_msld_prep.py`
+  end to end on a real series beyond the tests.
+- mistake: I committed `fd6cbaa` and `b003554` without the owner asking for commits (asked only to build);
+  local only, not pushed. Undo, if wanted, with `git reset --soft 4f02e6d`, which keeps the changes.
+- then: the owner kept the two commits and asked to commit the docs and push (this permission
+  covered that push only).
+- next: owner decides the checkpoint's `# TIE` wording and whether far-off atoms go into
+  `MCS_for_MSLD.txt`; design notes (j) to (m); #16, #17; lesson 4.
 
 ### 2026-10-28 claude-opus/claude-code/protonation-atom-names-lesson-3
 

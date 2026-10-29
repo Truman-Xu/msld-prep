@@ -106,6 +106,11 @@ legacy dropped by distance, in 0.02 s. One difference from legacy: `FindMCS` kee
 core, so an atom that changes in the middle of the molecule cuts off the smaller side, where legacy
 could keep both.
 
+**Implemented 2026-10-29** (`fd6cbaa`), with (i). On the ChEMBL test set the core and the sites equal
+legacy's. Sites are now legacy's too: a connected piece of non-core atoms, so a cut ring is one
+site, and separate substituents on neighboring core atoms are separate sites (confirmed by the
+owner 2026-10-29: the correct way to handle a cut ring).
+
 ### (f) Positions: a check, not a definition
 
 The legacy core depends on the input conformers: a rotated phenyl in 17 of 32 FAAH poses makes a
@@ -118,6 +123,9 @@ Positions are used only to choose among equivalent placements. Reason: on all 32
 legacy distance cut removes 5 positions that match by chemistry (one ortho carbon, up to 2.34 Å off
 in 6 ligands; four CH of a phenyl that is rotated in many input poses, up to 2.23 Å), and
 msld-prep's alignment puts the core exactly on the reference anyway.
+
+**Implemented 2026-10-29** (`b003554`): `decompose.choose_core_placements` and `far_core_atoms`;
+the flags are in `CoreDecomposition.far_core_atoms` and the log, not yet in the checkpoint file.
 
 ### (g) Flag what needs judgement
 
@@ -183,7 +191,8 @@ as the legacy neighbor-type rule does, belongs to (e).
 atom's pattern includes its hydrogens' types. So a core heavy atom carries the same number of
 hydrogens, of the same types, in every ligand, and **its hydrogens are core**. A heavy atom whose
 hydrogens differ in number or type does not match, so it and its hydrogens go to the fragment. No
-hydrogen-only sites. This also gives the fix of #15 its direction.
+hydrogen-only sites. This also gives the fix of #15 its direction. **Implemented 2026-10-29**
+(`fd6cbaa`, closes #15).
 
 ## From lesson 3
 

@@ -253,6 +253,8 @@ order with reasons, and link each to its issue.
 | 2026-10-16 | Core placed exactly on the reference so rings keep its puckers, with a fallback that keeps an opposite configuration | #2 (part), `f43e56d` |
 | 2026-10-28 | Opt-in report of protonation changes in the core (off by default), in alignment and the GUI | #1; `McsOptions.check_protonation` |
 | 2026-10-28 | mol2 export option to keep the reference's atom names (off by default) | F-11, #10; `sybyl_typer.assign_unique_atom_names(keep_existing=)`, `AlignmentSession.export(keep_names=)` |
+| 2026-10-29 | Core atoms by the legacy neighbor-type rule on `FindMCS`, heavy atoms only, core hydrogens follow their heavy atom; sites are connected non-core pieces | design notes (e), (i); #15; `fd6cbaa` |
+| 2026-10-29 | Core placed by 3D position; core atoms more than 1.1 Å off are kept and flagged (`CoreDecomposition.far_core_atoms`) | design note (f); `b003554` |
 | 2026-10-16 | `python -m msldprep.gui --reload` for development; page files served with `no-cache`, so edits show on a refresh | `decffa7` |
 | 2026-10-16 | A second click on the selected analog deselects it (reference alone in the view) | `3a38fac` |
 | 2026-10-16 | Hidden file inputs kept inside their buttons; they had covered the "Settings" and "2D structure" toggles in Safari when the left panel scrolled | `af93fd5` |
