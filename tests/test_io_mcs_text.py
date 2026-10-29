@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from msldprep import io_mcs_text
 
 
@@ -72,3 +74,20 @@ def test_tied_and_far_ligands_are_flagged_on_their_core_line_and_reimport_unchan
 
     reimported = io_mcs_text.import_mcs_text(path, all_ligands)
     assert reimported.core_atom_names == raw_decomposition.core_atom_names
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="export_mcs_text writes no lone-pair names and import_mcs_text reads them only from SITE lines, "
+    "so the build step loses every lone pair (#18)",
+)
+def test_lone_pairs_survive_the_checkpoint_round_trip(raw_decomposition, all_ligands, tmp_path):
+    def lone_pairs(decomposition):
+        fragments = {(site.index, name): sorted(f.lp_atom_names) for site in decomposition.sites for name, f in site.fragments.items()}
+        return fragments, decomposition.core_lp_atom_names
+
+    before = lone_pairs(raw_decomposition)
+    assert any(names for names in before[0].values())  # the ChEMBL halogens do carry lone pairs
+    path = str(tmp_path / "mcs_checkpoint.txt")
+    io_mcs_text.export_mcs_text([raw_decomposition], path)
+    assert lone_pairs(io_mcs_text.import_mcs_text(path, all_ligands)) == before
