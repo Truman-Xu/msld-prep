@@ -52,3 +52,23 @@ def test_import_raises_on_unknown_atom_name(raw_decomposition, all_ligands, tmp_
 
     with pytest.raises(DecompositionError):
         io_mcs_text.import_mcs_text(path, all_ligands)
+
+
+def test_tied_and_far_ligands_are_flagged_on_their_core_line_and_reimport_unchanged(raw_decomposition, all_ligands, tmp_path):
+    import dataclasses
+
+    analog = next(name for name in raw_decomposition.core_atom_names if name != raw_decomposition.reference_name)
+    far_names = list(raw_decomposition.core_atom_names[analog][:2])
+    flagged = dataclasses.replace(raw_decomposition, tied_core_matches=[analog], far_core_atoms={analog: far_names})
+    path = str(tmp_path / "mcs_checkpoint.txt")
+    io_mcs_text.export_mcs_text([flagged], path)
+
+    with open(path) as fp:
+        core_section = fp.read().split("\nCORE\n", 1)[1].split("\nANCHOR ATOMS\n", 1)[0]
+    core_lines = {line.split()[0]: line for line in core_section.splitlines() if line.strip()}
+    assert "# TIE: the core fits this ligand equally well in more than one way in 3D" in core_lines[analog]
+    assert f"# FAR: {' '.join(far_names)} more than 1.1 A from the reference's atoms" in core_lines[analog]
+    assert "#" not in core_lines[raw_decomposition.reference_name]
+
+    reimported = io_mcs_text.import_mcs_text(path, all_ligands)
+    assert reimported.core_atom_names == raw_decomposition.core_atom_names

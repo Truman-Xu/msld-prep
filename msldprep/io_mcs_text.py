@@ -30,6 +30,7 @@ from typing import Sequence
 from rdkit import Chem
 
 from .datamodel import CoreDecomposition, Fragment, LigandRecord, Site
+from .decompose import FAR_FROM_REFERENCE
 from .errors import DecompositionError
 
 logger = logging.getLogger(__name__)
@@ -93,12 +94,20 @@ def _format_decomposition_block(decomposition: CoreDecomposition) -> list[str]:
         f"REFLIG {decomposition.reference_name}\n\n",
         "CORE\n",
     ]
+    # Flags for the person reviewing the file, as comments after the CORE line;
+    # the importer ignores everything after "#".
     tied = set(decomposition.tied_core_matches)
     for mol_name in mol_names:
         names = decomposition.core_atom_names[mol_name]
         line = f"{mol_name} {' '.join(names)}"
         if mol_name in tied:
-            line += "  # TIE: ambiguous core match (identical anchor pattern); first match picked automatically"
+            line += "  # TIE: the core fits this ligand equally well in more than one way in 3D; one was picked, check it"
+        far = decomposition.far_core_atoms.get(mol_name)
+        if far:
+            line += (
+                f"  # FAR: {' '.join(far)} more than {FAR_FROM_REFERENCE} A from the reference's atoms;"
+                " kept in the core, check the pose"
+            )
         lines.append(line + "\n")
 
     lines.append("\nANCHOR ATOMS\n")

@@ -120,7 +120,7 @@ def far_core_atoms(
             far[name] = names
             logger.warning(
                 "Ligand %s: core atom(s) %s lie more than %.1f A from the reference's; kept in the core, "
-                "but check the pose.", name, ", ".join(names), FAR_FROM_REFERENCE,
+                "but check the pose (flagged FAR in the exported MCS_for_MSLD.txt).", name, ", ".join(names), FAR_FROM_REFERENCE,
             )
     return far
 
