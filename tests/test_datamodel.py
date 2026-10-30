@@ -1,6 +1,9 @@
 import os
 
+import pytest
+
 from msldprep.datamodel import LigandRecord
+from msldprep.errors import AlignmentError
 from msldprep.prm_records import parse_prm_text
 from msldprep.rtf_records import parse_rtf_text
 
@@ -19,6 +22,23 @@ def _load_reference():
         name=REFERENCE_STEM,
         is_reference=True,
     )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AlignmentError,
+    reason="RDKit's mol2 reader rejects a nitro O.co2 (11408) and cannot kekulize a ring NH typed N.ar (15723); "
+    "20 of the 89 public ChEMBL files fail (#19)",
+)
+@pytest.mark.parametrize("stem", ["11408", "15723"])
+def test_from_files_reads_every_public_example_form(stem):
+    ligand = LigandRecord.from_files(
+        os.path.join(CHEMBL_DIR, f"{stem}.mol2"),
+        os.path.join(CHEMBL_DIR, f"{stem}.rtf"),
+        os.path.join(CHEMBL_DIR, f"{stem}.prm"),
+        name=stem,
+    )
+    assert ligand.mol.GetNumAtoms() > 0
 
 
 def test_from_files_populates_rtf_and_prm_fields_directly():
