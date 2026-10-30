@@ -202,7 +202,53 @@ Both pipelines flag a fragment when its total changes by more than 5% of its ori
 a near-neutral fragment that means nothing: legacy prints "−44.43% ** CHECK" for 0.0013 e, and
 msld-prep warns "−833%" for 0.008 e. Proposal: report the largest change on any atom and the RMS
 change per ligand, in e, with a threshold the owner sets (the paper's figure of about 0.001 e RMS
-is a candidate, to be re-checked). **Open.**
+is a candidate, to be re-checked).
+
+**Verdict 2026-10-30: adopted (#20).** The percent check goes. Every run reports, in e: **Q-RMSD per ligand**
+(RMS of new minus CGenFF charge over the ligand's atoms), **the largest change on any atom**, and **the
+charge spread at each core position**. A ligand above **0.001 e** is flagged. Nothing stops by default;
+an optional config limit can stop a run. Reason: the percent check looks at the wrong thing. It raises
+false alarms (FAAH 1, 13, 31 with anchors in the core: 2 of 3 fragments flagged, for at most 0.0013 e,
+with every ligand under 0.001 e) and misses real changes (ChEMBL 34 ligands with anchors out: 9 of 68
+fragments flagged, while all 34 ligands are above 0.001 e and one core atom moves 0.055 e). It does not
+see what core averaging does to single atoms.
+
+**Why a flag and not a stop.** The paper (`papers/nihms-1851979.pdf`, read in full 2026-10-30) says that
+above 0.001 e "large deviations in both Δμ and ΔΔG can occur", while most ΔΔG stay under 0.5 kcal/mol
+and some outliers exceed 1.0. Its Table 1 gives mean Q-RMSD 0.002 e for FAAH, 0.003 e for ChEMBL, 0.022 e
+for 12fused (its worst series, 0.45 kcal/mol) and 0.007 e over all series. So 0.001 e is below what the
+paper treats as routine; a stop there would halt most real series. The paper recommends bookending
+whenever CRN is used. It also reports dipole changes (Δμ), which this verdict leaves out.
+
+**Checked against the SI 2026-10-30** (`papers/NIHMS1851979-supplement-Supplementary_Information.pdf`,
+Tables S1 to S6, 191 molecules). **Q-RMSD covers all of a ligand's atoms, lone pairs included.** The
+charges in legacy's own `examples/1_FAAH/build.name`, against each ligand's rtf, reproduce all 32 values of
+Table S6 to six decimals; leaving out lone pairs or hydrogens does not. This is also a reference to test
+against in lesson 6.
+
+What the flag does on those 191 molecules, with hydration ΔΔG between original and renormalized charges:
+
+| Q-RMSD (e) | Molecules | Median abs(ΔΔG) | Above 0.5 kcal/mol | Above 1.0 kcal/mol |
+| --- | --- | --- | --- | --- |
+| up to 0.001 | 54 | 0.009 | 0 | 0 |
+| 0.001 to 0.002 | 60 | 0.091 | 1 | 0 |
+| 0.002 to 0.005 | 13 | 0.120 | 1 | 0 |
+| 0.005 to 0.01 | 17 | 0.094 | 2 | 1 |
+| 0.01 to 0.02 | 29 | 0.286 | 9 | 1 |
+| above 0.02 | 18 | 1.183 | 14 | 13 |
+
+So 0.001 e is a sound line for "nothing to do": no molecule under it exceeds 0.173 kcal/mol, and it misses
+none of the 27 above 0.5. But it fires on 137 of 191 (72%), and only 20% of those exceed 0.5.
+
+**Verdict 2026-10-30: add a second, stronger flag (#20).** 0.001 e stays as the line below which nothing needs
+doing. A ligand gets the stronger flag when **Q-RMSD is above 0.01 e or abs(Δμ) is above 0.5 D**, so the run
+also computes the dipole change, from the coordinates. Neither flag stops a run by default. Above 0.01 e alone
+fires on 47 and catches 23 of the 27. Adding abs(Δμ) above 0.5 D fires on 52 and catches 25 of the 27, including
+all 15 above 1.0. **The thresholds are provisional; re-check them in lesson 6.** 41 of the 47 above 0.01 e are
+from one series (12fused), outside it only 2 of 6 exceed 0.5, and these are hydration results, not binding.
+
+Measurements in (j) to (n) are from 2026-10-30 at `61030bc`, in memory (so #18 does not affect them), on
+input poses, with CGenFF charges as the baseline; no CHARMM run.
 
 ### (k) Don't cut a charge-coupled ring into separate sites
 
@@ -212,7 +258,21 @@ CGenFF shifts charge across the ring (ligand 13: +0.045 e in one half, −0.047 
 each half has to be forced to its own site average. Result: largest atom change 0.016 e against
 0.002 e, RMS 0.0034 e against 0.00024 e (14×). Proposal: a site should not split atoms whose
 charges move together, and the CRN cost should be part of choosing the core. This belongs with
-(e) and (i). **Open.**
+(e) and (i).
+
+**Correction 2026-10-30:** the numbers above predate rule (e). With (e), FAAH 1, 13, 31 is one site, so
+the split is gone. With anchors in the core msld-prep now gives legacy's figures (RMS 0.00023 e, largest
+0.002 e).
+
+**Verdict 2026-10-30: the cut-ring part is closed by (e); the rest is a report, not an optimizer (#21).** The
+core is not chosen by CRN cost automatically. The report names the core atoms with the widest charge
+spread and what moving each one would do, and the person decides through an override (b2). Reason: most
+of the change now comes from averaging core charges (ChEMBL 34 ligands: RMS 0.0083 e on core atoms,
+0.0012 e on fragment atoms), because the pattern rule looks only one bond out and an atom can pass it with
+a varying charge. Moving that one atom can help a lot: on ChEMBL 34 ligands, moving `N011` out takes
+ligands above 0.001 e from 34 to 6 or 9 (depending on the site, whose bonding was not checked) and mean
+Q-RMSD from 0.0023 e to 0.0014 or 0.0016 e. The paper describes the same case (12fused: "sufficient atom
+type overlap" but "poorer electrostatic overlap") and the same remedy (`InFrag`).
 
 ### (l) The site average: per substituent or per ligand?
 
@@ -220,14 +280,37 @@ Legacy averages over the unique fragments at a site (each substituent counts onc
 averages over ligands, so a substituent shared by ten ligands counts ten times, and adding a
 duplicate ligand changes every substituent's charges. Since MSLD simulates each unique substituent
 once, per-substituent weighting matches the simulation. Tied to whether msld-prep deduplicates
-fragments at all (lesson 6). **Open.**
+fragments at all (lesson 6).
+
+**Verdict 2026-10-30: deduplicate, and average per substituent (#22).** Each distinct substituent at a site
+appears once and counts once, as in legacy and the paper ("fragments at each site are filtered to remove
+possible duplicates"; the target is the average "of all substituents at a single perturbation site").
+Reason: the charges then depend on which substituents exist, not on which combinations happen to be
+listed, and MSLD samples every combination anyway. Today msld-prep writes one block per ligand: ChEMBL 34
+ligands get `NSUBS 34 34` where only 14 and 27 substituents are distinct, so 68 blocks instead of 41. The
+weighting itself costs almost nothing there: a core correction of 0.0018 e in total, mean Q-RMSD 0.00236 e
+against 0.00234 e. This changes what is written (`NSUBS`, patches, checkpoint), and the link from each
+ligand to its substituent at each site must be kept for reading results.
+
+**The identity test must compare the fragment graph with its attachment points:** atom types, bonds, and
+which core atom each attached atom bonds to. Two simpler tests failed on FAAH: types with distance to the
+core merged para-CF₃ with meta-CF₃, and so did a graph without attachment points, because a cut ring is
+the same chain either way. The wrong merge put 0.087 e on one atom. On ChEMBL 34 ligands, the substituents
+the graph test calls identical have identical charges.
 
 ### (m) How to spread a correction over a fragment's atoms
 
 Legacy spreads it evenly; msld-prep in proportion to |charge|, which loads highly charged atoms
 (a CF₃ carbon takes 3.4× the even share). Both meet the constraints, and the amount to spread is
 set by the decomposition, so this is the smaller question. To decide: even, proportional, or a
-least-squares fit that keeps each atom closest to its CGenFF charge. **Open.**
+least-squares fit that keeps each atom closest to its CGenFF charge.
+
+**Verdict 2026-10-30: spread evenly (#23).** One exact pass, not legacy's ±1e-6 loop. Lone pairs still do not
+move. Reason: for a fixed total, plain least squares gives equal shares, so "even" and "least squares" are
+the same option, and proportional is the weighted version with weights 1/|q|. Even was as good or slightly
+better everywhere (mean Q-RMSD on ChEMBL 34 ligands 0.00234 e against 0.00238 e; on 4 ligands 0.00492 e
+against 0.00507 e), and it does not load highly charged atoms. Fitting the site totals by least squares as
+well gave no gain (0.00235 e against 0.00236 e), so that is dropped. This changes the charges written.
 
 ## From lesson 4
 
@@ -239,4 +322,46 @@ On FAAH 1, 13, 31 the fragment is attached to the core at two atoms (`C008`, `C0
 moves every anchor out (`apply_manual_overrides`; core 28, fragment 11). Both can be overridden
 (`AnCore` / `an_core`). Moving anchors out gives each substituent its own charges at the attachment;
 keeping them makes the shared core bigger. Here their charges barely differ between ligands
-(lesson 3: `C008` 0.008/0.005/0.008, `C013` −0.121/−0.120/−0.120). **Open.**
+(lesson 3: `C008` 0.008/0.005/0.008, `C013` −0.121/−0.120/−0.120). On all 32 FAAH ligands they differ
+more (spread 0.021 e and 0.011 e).
+
+**Verdict 2026-10-30: keep the legacy behavior, anchors in (#24).** A site attached at two or more points keeps
+its anchors in the core. As in legacy (`msld_crn.py:250-254`), a single-point anchor still moves into the
+fragments. Reason: the owner prefers fragments smaller to begin with. **There must be an easy option or
+function to move the anchors out.** Today's `apply_manual_overrides` moves every anchor out by default,
+so this default changes. **Confirmed by the owner 2026-10-30:** this exact rule, single-point anchors out
+included, is the default.
+
+The cost is known and accepted, and it is why the easy option is wanted. Mean Q-RMSD, per substituent and
+spread evenly:
+
+| Series | Legacy rule | Anchors out | Fragment atoms, legacy rule / out |
+| --- | --- | --- | --- |
+| FAAH, 32 ligands | 0.00259 e, 28 of 32 above 0.001 e | 0, no charge changes | 8-20 / 11-23 |
+| ChEMBL, 4 ligands | 0.00611 e, 4 of 4 | 0.00492 e, 4 of 4 | 6-20 / 9-22 |
+| ChEMBL, 34 ligands | 0.00285 e, 34 of 34 | 0.00236 e, 34 of 34 | 8-22 / 10-24 |
+
+With anchors out, the FAAH core charges are identical across all 32 ligands and every substituent keeps its
+CGenFF charges. The legacy-rule figures are close to the paper's Table 1 (FAAH 0.002 e, ChEMBL 0.003 e).
+What the larger fragments do to sampling was not measured.
+
+## From the review of lesson 3
+
+### (o) A core in two pieces: keep the second piece?
+
+**Observed 2026-10-30** on the 31 ligands of `examples/2_ChEMBL/mol_list.txt`. Legacy's core is
+`C017`, `N009`, `C010`, `H023`, `N011` with `NSUBS 19 24`: two sites, so 456 combinations from 43
+substituents. msld-prep's core is the same minus `C017`, with `NSUBS 31`: one site, so 31 combinations from
+31 substituents. All five atoms pass rule (e) in all 31 ligands, but `C017` is not bonded to the other four.
+`FindMCS` keeps one connected core, the difference (e) already notes, and with `C017` gone the rest of the
+molecule is one connected piece, so one site. Legacy's lone core atom is what splits it into two sites.
+
+This costs msld-prep the multisite gain on this series. Whether a lone core atom is good is less clear.
+Legacy's own log flags it: "Large RMSD for CORE atom C005 - RMSD > 0.8 (1.532)", and `C005` is ligand 9538's
+name for this position, assuming the log uses the first ligand's names. So the atom that gives the second
+site fits poorly in 3D; its charge fit and its effect on sampling are not known. Legacy's figures were read
+from its `MCS_for_MSLD.txt` and log, not re-run. Eight of these ligands need #19's workaround to load.
+
+**Verdict 2026-10-30: keep the connected core for now, and revisit in lesson 6.** Reason: the multisite gain
+is large, but there is no evidence yet on what a lone, poorly fitting core atom does to charges or sampling.
+Lesson 6 runs old against new on the full series, which can supply it.
