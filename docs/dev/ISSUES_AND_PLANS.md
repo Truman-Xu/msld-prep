@@ -67,6 +67,12 @@ Template for a feature:
 | #1 | Option to require matching protonation states between reference and analog | enhancement | **done 2026-10-28**: `McsOptions.check_protonation` (off by default) reports core atoms whose formal charge or total degree differs, in `CoreAlignment.protonation_differences`; the match and pose are unchanged (owner's choice 2026-10-28: flag, not exclude or refuse). GUI setting and per-analog lines. Tolerance stays the default (#9, `ignore_bond_orders`) | `tests/test_align.py::test_the_protonation_check_flags_core_atoms_and_leaves_the_pose_as_it_is`, `test_the_protonation_check_does_not_flag_a_substituent_in_place_of_a_hydrogen`, `tests/test_gui_service.py::test_protonation_changes_are_flagged_only_when_asked_and_the_pose_stays` |
 | #2 | Respect chirality of molecules in the structure alignment | correctness | **closed 2026-10-21**, scope limited to alignment by the owner, who is satisfied with it; the whole pipeline is tested after the re-design. Before: alignment settles and reports stereo (`b51a361`) and puts the core exactly on the reference, falling back when that would invert a centre (`f43e56d`); decomposition and the CHARMM writers were not examined, and the GUI is limited to alignment | `tests/test_align.py` (stereochemistry section, `test_the_core_keeps_the_reference_geometry_ring_puckers_included`) |
 | #16 | GUI: a mol2 reference without hydrogens is used without them: RDKit's mol2 reader marks atoms `NoImplicit`, so `AddHs` in `set_reference` adds none | bug | open, found 2026-10-28 while working on #10; fix or refuse is the owner's call | `tests/test_gui_service.py::test_a_mol2_reference_without_hydrogens_gets_them` (strict `xfail`) |
+| #24 | Default to legacy's anchor rule (design note (n)), with an easy way to move anchors out | enhancement | open, verdict 2026-10-30; changes what is written; the writers' handling of two anchors kept in the core is unchecked | none yet |
+| #23 | Spread charge corrections evenly (design note (m)) | enhancement | open, verdict 2026-10-30; changes the charges written | none yet |
+| #22 | Deduplicate substituents per site and average per substituent (design note (l)) | correctness | open, verdict 2026-10-30; changes what is written | none yet |
+| #21 | Report which core atoms drive the charge change and what moving each would do (design note (k)) | enhancement | open, verdict 2026-10-30; needs #20 | none yet |
+| #20 | CRN report in e with two flag levels, in place of the percent check (design note (j)) | enhancement | open, verdict 2026-10-30; thresholds provisional until lesson 6 | none yet |
+| #19 | 20 of the 89 public ChEMBL mol2 files fail to load: RDKit's reader rejects a nitro `O.co2` (12 files) or cannot kekulize a ring NH typed `N.ar` (8 files); legacy loads them with its own parser | bug | open, found 2026-10-30 while reviewing lesson 3. Tried outside the library: OpenBabel to sdf recovers the 8, and adding +1 on the nitro N recovers the 12 (results on the issue) | `tests/test_datamodel.py::test_from_files_reads_every_public_example_form` (strict `xfail`) |
 | #18 | Lone pairs are lost between `define_common_core` and `build`: `export_mcs_text` writes no lone-pair names and `import_mcs_text` reads them only from SITE lines, so the build has no lone pairs (empty `lpsites.inp`, their charge spread by CRN) | bug | open, found 2026-10-29 in lesson 4 (FAAH 13, 31; all four ChEMBL test ligands); predates that day's core changes; the fix changes what the checkpoint carries | `tests/test_io_mcs_text.py::test_lone_pairs_survive_the_checkpoint_round_trip` (strict `xfail`) |
 | #17 | The legacy `msld_prm` contract test passes without testing anything under pandas 3: chained assignment writes nothing, so legacy finds no bonded terms | bug (test) | open, found 2026-10-28 in lesson 3; legacy is read-only here, so the fix is a pandas < 3 interpreter for the test, an upstream fix, or retiring the test: the owner's call | `tests/test_writers.py::test_downstream_msld_prm_finds_bonded_terms` (strict `xfail` when pandas >= 3) |
 | #14 | Speed up the core search for large molecules (junction tree and other ideas) | enhancement | **postponed 2026-10-21** by the owner until the whole pipeline is re-designed and re-implemented | none yet |
@@ -221,9 +227,11 @@ Things that look like gaps but are choices. Do not "fix" them; change them only 
 From handoff Q13; **none verified**. Answer them while learning the original pipeline; each
 answer may create an issue or a feature above.
 
-1. The original merges identical fragments per site (for example `NSUBS 19 24` for 31 ligands);
+1. **Answered 2026-10-30 by design note (l): msld-prep is to deduplicate; not implemented yet.** The
+   original merges identical fragments per site (for example `NSUBS 19 24` for 31 ligands);
    msld-prep appears not to (`nsubs` 34 34 34 for 34 ligands). Intended or a regression?
-2. Does msld-prep's proportional charge redistribution meet the same constraints as the
+2. **Answered 2026-10-30: yes, and design note (m) moves to even spreading; not implemented yet.**
+   Does msld-prep's proportional charge redistribution meet the same constraints as the
    original's cyclic 1e-6 loop, and does the difference matter?
 3. The original's `.str` splitting has no counterpart on the `from-files` path; a config
    comment about `.str` may be stale.
