@@ -75,6 +75,12 @@ function renderState() {
     if (ref.charged_atoms) note += ` · ${ref.charged_atoms} charged atom${ref.charged_atoms > 1 ? "s" : ""}`;
     note += ref.stereocenters.length ? ` · stereocenters: ${ref.stereocenters.join(", ")}` : " · no stereocenters";
     $("reference-info").append(strong, note);
+    if (ref.hydrogens_added) {
+      const n = ref.hydrogens_added;
+      $("reference-info").append(el("div", "warn",
+        `The file lacked hydrogens: ${n} hydrogen${n > 1 ? "s were" : " was"} added by RDKit, taking every atom as neutral ` +
+        "except those whose atom type sets a charge. Check the protonation and the hydrogen positions before using the reference."));
+    }
   }
 
   const analogs = state.analogs;

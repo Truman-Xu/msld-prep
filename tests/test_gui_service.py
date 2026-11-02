@@ -2,6 +2,7 @@ import io
 import os
 import zipfile
 
+import numpy as np
 import pytest
 from rdkit import Chem
 
@@ -226,15 +227,26 @@ def test_an_sdf_reference_has_no_names_to_keep_so_it_is_named_as_by_default():
     assert _mol2_names(kept[REFERENCE_STEM]) == _mol2_names(renamed[REFERENCE_STEM])
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="RDKit's mol2 reader marks every atom NoImplicit, so Chem.AddHs in set_reference adds no hydrogens "
-    "to a mol2 reference that has none (#16)",
-)
-def test_a_mol2_reference_without_hydrogens_gets_them():
+def test_a_mol2_reference_without_hydrogens_gets_them_and_says_so():
+    full = Chem.MolFromMol2Block(_reference_text(), removeHs=False)
     session = AlignmentSession()
     session.set_reference(REFERENCE_STEM, _reference_mol2_without_hydrogens())
-    assert session.summary()["reference"]["atoms"] == Chem.MolFromMol2Block(_reference_text(), removeHs=False).GetNumAtoms()
+    reference = session.summary()["reference"]
+    assert reference["atoms"] == full.GetNumAtoms()
+    assert Chem.MolToSmiles(Chem.RemoveHs(session.reference)) == Chem.MolToSmiles(Chem.RemoveHs(full))  # the NH stays neutral
+    assert reference["hydrogens_added"] == sum(1 for a in full.GetAtoms() if a.GetAtomicNum() == 1)
+    positions = session.reference.GetConformer().GetPositions()
+    heavy = {a.GetIdx() for a in session.reference.GetAtoms() if a.GetAtomicNum() > 1}
+    for atom in session.reference.GetAtoms():
+        if atom.GetAtomicNum() == 1:  # placed next to its heavy atom, not at the origin
+            host = atom.GetNeighbors()[0].GetIdx()
+            assert host in heavy and 0.9 < float(np.linalg.norm(positions[atom.GetIdx()] - positions[host])) < 1.2
+
+
+def test_a_reference_with_hydrogens_reports_none_added():
+    session = AlignmentSession()
+    session.set_reference(REFERENCE_STEM, _reference_text())
+    assert session.summary()["reference"]["hydrogens_added"] == 0
 
 
 def test_kept_names_that_cgenff_would_renumber_are_refused_with_the_atoms_named():

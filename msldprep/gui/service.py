@@ -51,6 +51,32 @@ def _net_charge(mol: Chem.Mol) -> int:
     return sum(atom.GetFormalCharge() for atom in mol.GetAtoms())
 
 
+# Sybyl types whose formal charge does not depend on hydrogens.
+_CHARGED_WITHOUT_HYDROGENS = {"N.4", "O.co2"}
+
+
+def _with_hydrogens(mol: Chem.Mol) -> tuple[Chem.Mol, int]:
+    """`mol` with its hydrogens, and how many were added.
+
+    A mol2 file without hydrogens needs more than AddHs: RDKit's mol2 reader
+    marks every atom NoImplicit, and it guesses charges and radicals from the
+    valence it sees, so an amine NH comes out as N- and ring CH carbons as
+    radicals. Those marks and radicals are cleared, and only charges the Sybyl
+    type fixes (N.4, a carboxylate's O.co2) are kept; every other atom is taken
+    as neutral. Each atom then gets the hydrogens its bonds call for."""
+    if not any(atom.GetAtomicNum() == 1 for atom in mol.GetAtoms()):
+        mol = Chem.Mol(mol)
+        for atom in mol.GetAtoms():
+            atom.SetNoImplicit(False)
+            atom.SetNumRadicalElectrons(0)
+            sybyl = atom.GetProp("_TriposAtomType") if atom.HasProp("_TriposAtomType") else None
+            if sybyl is not None and sybyl not in _CHARGED_WITHOUT_HYDROGENS:
+                atom.SetFormalCharge(0)
+        Chem.SanitizeMol(mol)
+    with_h = Chem.AddHs(mol, addCoords=True)
+    return with_h, with_h.GetNumAtoms() - mol.GetNumAtoms()
+
+
 def _stereocenters(mol: Chem.Mol) -> list[str]:
     """The CIP labels of a 3D molecule's stereocenters, read from its coordinates, like "R" or "S"."""
     copy = Chem.Mol(mol)
@@ -254,6 +280,7 @@ class AlignmentSession:
     def reset(self) -> None:
         with self._lock:
             self.reference: Chem.Mol | None = None  # with hydrogens
+            self.reference_hydrogens_added = 0
             self.reference_name: str | None = None
             self.analogs: dict[str, AnalogEntry] = {}
             self.params = AlignParams()
@@ -273,16 +300,19 @@ class AlignmentSession:
 
     def set_reference(self, name: str, text: str) -> None:
         """Load the reference from mol2 or sdf text (told apart by content).
-        Hydrogens are added if the file has none. Clears earlier alignments,
-        which no longer refer to this reference.
+        Hydrogens are added if the file lacks them, and the summary says how
+        many, so the page can warn that their placement is RDKit's guess.
+        Clears earlier alignments, which no longer refer to this reference.
         """
         if "@<TRIPOS>MOLECULE" in text:
             mol = mol_from_mol2_text(text)
         else:
             mol = mol_from_sdf_text(text)
+        mol, added = _with_hydrogens(mol)
         with self._lock:
             self._require_idle()
-            self.reference = Chem.AddHs(mol, addCoords=True)
+            self.reference = mol
+            self.reference_hydrogens_added = added
             self.reference_name = _clean_name(name)
             for entry in self.analogs.values():
                 self._clear_alignment(entry)
@@ -428,6 +458,7 @@ class AlignmentSession:
                     "net_charge": _net_charge(self.reference),
                     "charged_atoms": sum(1 for a in self.reference.GetAtoms() if a.GetFormalCharge()),
                     "stereocenters": _stereocenters(self.reference),
+                    "hydrogens_added": self.reference_hydrogens_added,
                 },
                 "params": {
                     "complete_rings_only": mcs.complete_rings_only,

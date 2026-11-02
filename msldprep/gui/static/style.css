@@ -71,6 +71,7 @@ code, kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 kbd { border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; margin-left: 4px; opacity: .8; }
 .info { margin-top: 8px; color: var(--muted); }
 .info strong { color: var(--text); }
+.info .warn { color: var(--warn); margin-top: 4px; }
 
 textarea, input[type=number], select {
   width: 100%; font: inherit; color: var(--text); background: var(--bg);
