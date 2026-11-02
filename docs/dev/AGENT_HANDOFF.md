@@ -7,7 +7,7 @@ first; humans read it second.
 schema: agent-handoff/1
 repo: github.com/Truman-Xu/msld-prep   # public; first push 2026-10-08
 default_branch: main
-last_updated: 2026-10-30
+last_updated: 2026-11-02
 ```
 
 ## 0. Protocol
@@ -110,6 +110,8 @@ Follow these unless the owner says otherwise in your own session.
 
 | Date | Instruction | Tag |
 | --- | --- | --- |
+| 2026-11-02 | Commit and push the day's work (this permission covers that push only). The owner will ask someone else to follow the GUI README (#8 item 4) and bring back their feedback. | `[told]` |
+| 2026-11-02 | **#16:** add hydrogens to a mol2 reference that lacks them, with a warning (done, `e938bda`). **#17:** pin pandas below 3 for the legacy tests (done, `fb7d4b2`). **#19:** read what RDKit refuses through OpenBabel, the owner's idea (done, `a3be5d6`). **#18** first (done, `b6f60bf`). **(p):** one source file per run, the owner's direction. | `[told]` |
 | 2026-10-30 | Update the handoff and agent memory, file issues for (j) to (n) (done, #20 to #24), commit and push (this permission covers that push only). | `[told]` |
 | 2026-10-30 | **Second flag level in (j) adopted:** above 0.01 e or abs(dipole change) above 0.5 D, as well as the flag above 0.001 e; provisional, to be re-checked in lesson 6; neither stops a run by default. Not implemented (#20). | `[told]` |
 | 2026-10-30 | **(n) confirmed:** the exact legacy rule is the default, single-point anchors out included. **(o) verdict:** keep the connected core for now, revisit in lesson 6. Recorded in `docs/dev/DESIGN_NOTES.md`; not implemented. | `[told]` |
@@ -219,7 +221,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G15 | **No longer true for alignment since 2026-10-14** (`align_to_reference` matches by element and ignores isotope labels); still true for anything that matches a query built from labeled atoms. Original text: `align.prepare_ligand_set` / `assign_isotope_labels` set isotope labels on the **reference** `Mol` too. A labeled reference no longer matches an unlabeled analog, so `align_common_core` / `align_to_reference` then raise `ValueError: molecule doesn't match the core`. Align before labeling, or use a freshly loaded reference (the new tests do). The session-scoped `reference_ligand` fixture in `tests/conftest.py` is labeled once `prepared_ligand_set` has run. The GUI must use a copy and never label. | `[ran 2026-10-12]` |
 | G19 | `Chem.RemoveHs` keeps hydrogens that carry an isotope label (RDKit's default `RemoveHsParameters`). Once `assign_isotope_labels` has run, every "heavy-atom copy" made with `RemoveHs` still has all its hydrogens: `align.find_shared_core` searched with them (#15, **fixed 2026-10-29**: hydrogens are labeled 0 and the copies are made with `Chem.RemoveAllHs`). Also, `FindMCS` query atoms built with `CompareIsotopes` report atomic number 0, so count atoms instead of testing elements. | `[ran 2026-10-21]` |
 | G20 | **Fixed 2026-11-02 (#18), the file still carries none:** `import_mcs_text` folds lone pairs in from each ligand's rtf by host atom, so `build` has them again; anything that reads `MCS_for_MSLD.txt` without the ligands still sees none. Original text: `MCS_for_MSLD.txt` does not carry lone pairs: `export_mcs_text` writes none and `import_mcs_text` reads them only from SITE lines, so anything built after re-reading the checkpoint (`build_from_core_definition`, the `build` CLI command) has no lone pairs (#18, strict xfail). A decomposition used directly in memory still has them. Also: the checkpoint's CORE lines may carry `# TIE` and `# FAR` comments (since `9d00ab2`); the importer ignores them, legacy `msld_crn.py` would not. | `[ran 2026-10-29]` |
-| G21 | 20 of the 89 mol2 files in `examples/2_ChEMBL` do not load through `LigandRecord.from_files` (#19, strict xfail), 8 of them in its `mol_list.txt`, so any ChEMBL figure over the full list is over fewer ligands unless they are recovered. To recover them outside the library: `obabel -imol2 X.mol2 -osdf`, read with `sanitize=False`, set +1 on a 4-valent neutral N bonded to `O-`, then `SanitizeMol`; atom order is kept, so names can be set from the mol2. | `[ran 2026-10-30]` |
+| G21 | **Fixed 2026-11-02 (#19), when `obabel` is found:** `mol2_reader` reads them through OpenBabel; without it they are refused with the cause, so a test environment without `obabel` still cannot load these 20. Original text: 20 of the 89 mol2 files in `examples/2_ChEMBL` do not load through `LigandRecord.from_files` (#19, strict xfail), 8 of them in its `mol_list.txt`, so any ChEMBL figure over the full list is over fewer ligands unless they are recovered. To recover them outside the library: `obabel -imol2 X.mol2 -osdf`, read with `sanitize=False`, set +1 on a 4-valent neutral N bonded to `O-`, then `SanitizeMol`; atom order is kept, so names can be set from the mol2. | `[ran 2026-10-30]` |
 | G22 | `/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel` run directly fails on `libcoordgen.so.3`. `tests/test_sybyl_typer.py::_obabel_env` builds `LD_LIBRARY_PATH` for it, so the suite passes. For a direct call use `/home/ziqiaoxu/.conda/envs/crimm-dev/bin/obabel` (3.2.1). | `[ran 2026-10-30]` |
 | G4 | Aligned ligands are stored as one sdf, not per-ligand mol2, because RDKit's mol2 reader sometimes fails to re-kekulize an aromatic ring. Atom names ride in the `AtomNames` data field. | `[read align.py]` |
 | G5 | CGenFF atom types are carried on RDKit atoms as the `CGENFFAtomType` property. **Since 2026-10-29** the isotope labels (from 300) stand for an atom's *pattern*, its type plus its neighbors' types (`align.atom_pattern`, `assign_pattern_labels`), on heavy atoms only; hydrogens get 0. They are written into `aligned_ligands.sdf` with the structures. Do not use isotopes for anything else in this package. | `[read]`, `[ran 2026-10-29]` |
@@ -227,7 +229,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G7 | Docstrings and configs still say `rewrite/msld_prep_cli.py` and `rewrite/scripts/...`, from when this code lived in a `rewrite/` directory. Four matches in `.py` and `.yaml` files. The real paths have no `rewrite/`. | `[ran grep 2026-10-08]` |
 | G8 | Untracked does not mean disposable. `build.*/` and `work.*/` are git-ignored but still hold the owner's runs; do not delete them. `TODO.md` was untracked; its two items are issues #1 and #2, and the owner deleted the file on 2026-10-14. | `[inferred]` |
 | G9 | Other sessions may edit `docs/dev/*.md` concurrently. Re-read a file immediately before editing it, and make targeted edits, never whole-file rewrites. | `[inferred: same hazard recorded in crimm's handoff]` |
-| G10 | `test_downstream_msld_prm_contract` puts `/home/ziqiaoxu/msld-py-prep` on `sys.path` and emits pandas `ChainedAssignmentError` warnings from that legacy file. The warnings are in legacy code, not in this repo. **They are not harmless (2026-10-28):** under pandas 3 the chained assignments write nothing, so legacy `msld_prm` finds no bonds, angles or dihedrals and the test passes without testing anything (#17, strict xfail `test_downstream_msld_prm_finds_bonded_terms`). Legacy `msld_crn.py` does not run at all under pandas 3 (`KeyError: 0`, line 326). To run legacy code, use `/home/ziqiaoxu/.conda/envs/autogrow/bin/python` (Python 3.10, pandas 1.5.0, numpy 1.23; no RDKit check made) for `msld_crn`/`msld_prm`; `msld_mcs` runs in `crimm-dev`. | `[ran 2026-10-08]`, `[ran 2026-10-28]` |
+| G10 | **2026-11-02 (#17):** the `test` extra pins `pandas<3`, and both legacy contract tests skip under pandas 3, so in `crimm-dev` (pandas 3.0.6) they skip rather than pass vacuously; under pandas 2.3.3 they pass. Original text: `test_downstream_msld_prm_contract` puts `/home/ziqiaoxu/msld-py-prep` on `sys.path` and emits pandas `ChainedAssignmentError` warnings from that legacy file. The warnings are in legacy code, not in this repo. **They are not harmless (2026-10-28):** under pandas 3 the chained assignments write nothing, so legacy `msld_prm` finds no bonds, angles or dihedrals and the test passes without testing anything (#17, strict xfail `test_downstream_msld_prm_finds_bonded_terms`). Legacy `msld_crn.py` does not run at all under pandas 3 (`KeyError: 0`, line 326). To run legacy code, use `/home/ziqiaoxu/.conda/envs/autogrow/bin/python` (Python 3.10, pandas 1.5.0, numpy 1.23; no RDKit check made) for `msld_crn`/`msld_prm`; `msld_mcs` runs in `crimm-dev`. | `[ran 2026-10-08]`, `[ran 2026-10-28]` |
 | G11 | `/home/ziqiaoxu/msld-prep-tools` is a symlink to `/home/ziqiaoxu/msld-prep` (published to cluster users; see standing instructions). Use the new path in docs and new scripts; do not break the link. | `[told 2026-10-08]`, `[ran]` |
 | G12 | The owner's untracked files `align.ipynb`, `analogues.txt`, `sil.mol2`, `sil.prm`, `sil.rtf`, `cellz.yaml` and `cellz_build.yaml` belong to the unpublished analog series (the notebook holds its structures, `analogues.txt` lists them, `cellz*.yaml` point to them). They are listed in `.git/info/exclude`, so `git add .` skips them. That file is local; a fresh clone has no such protection. `cellz.yaml` also holds a CGenFF install path. | `[read]` heads of the files, `[ran]` exclude |
 | G13 | **Fix available 2026-10-30:** crimm `1816fbb` replaces `8075b75` (Q12); the notebook has not been re-run with it. Original text: `align.ipynb` reads its inputs from absolute paths in another lab member's directory, and was run only as far as cell 9. There it fails: `crimm/Adaptors/RDKitConverter.py::heterogen_to_rdkit` reads `het_res.pdbx_description`, which a `Residue` read from a CRD file lacks. The owner's hotfix is commit `8075b75` on crimm's local branch `RDKConverter-Het`, not the checked-out branch (`cleanup/phase0-tests-and-dev-docs`). Cells after 9 were not run. | `[ran 2026-10-08]` failure; `[inferred]` cause |
@@ -248,7 +250,8 @@ git:
            path, GUI plan, learning-plan intent), `align_to_reference` (#3) and the text loaders (#3),
            then this docs update; on 2026-10-14 four GUI commits (service #4, page #6, API #5, the
            charged-reference documentation #9), then the mol2 export (#7), the handoff update, and the 2026-10-14 documentation commits (Closes rule, deliberate behaviors and F-11, handoff), then three on the same day for #9: the matching rewrite, the GUI panel and setting, the docs
-  pushed: everything, through the 2026-10-30 docs commit (each push at the owner's request, section 2); main is level with origin/main
+  pushed: everything, through the 2026-11-02 docs commit (each push at the owner's request, section 2); main is level with origin/main
+  commits_2026-11-02: b6f60bf (Closes #18), c987ac3 (docs), a3be5d6 (Closes #19), e938bda (Closes #16), fb7d4b2 (Closes #17), d89763c (GUI README, Part of #8), then the end-of-day docs commit; each tree tested on its own
   commits_2026-10-30: 74fa94d (the owner's, ignore papers/), afc9004 (#19 xfail), 651ba62 (design verdicts (j) to (o)), then the end-of-day docs commit; all pushed at the owner's request
   commits_2026-10-28: 248b646 (#1), 25d4299 (#10), 393d994 (#16 xfail), c894fe4 (#17 xfail), then the lesson-3 docs and handoff commit
   commits_2026-10-16: test_structures ignored; #12 Uncharger removed; #13 MCS limit; #11 orientation (+ GUI note); #2 stereo in alignment (+ GUI) and the exact core placement f43e56d; GUI --reload, deselect, file-input scroll fix, American spelling; docs
@@ -262,7 +265,7 @@ github:
            "#12 (remove the Uncharger option), #13 (MCS time limit) and #11 (symmetric orientation) closed by commits 2026-10-16; #5 to #7 closed as built; #2 partly done (alignment only); #14 speed-up ideas open, the owner decides on 2026-10-19 whether to work on it",
            "#9 alignment fails with \"molecule doesn't match the core\" when the reference has a charged atom (created 2026-10-14; closed by e670117 the same day)"]
   commits_2026-10-29: 4f02e6d (design verdicts), fd6cbaa ((e), (i), Closes #15), b003554 ((f)), 80c8629 (docs), 9d00ab2 (checkpoint TIE wording, FAR flags), f309e9e (#18 xfail), then the end-of-day docs commit; all pushed at the owner's request
-  open_issues_2026-10-30: ["#8", "#14 (postponed)", "#16 (mol2 reference without hydrogens)", "#17 (msld_prm contract test vacuous under pandas 3)", "#18 (lone pairs lost in the checkpoint round trip)", "#19 (new: 20 of 89 public ChEMBL mol2 files fail to load)", "#20 to #24 (new: implement design verdicts (j) to (n))"]   # #15 closed 2026-10-29 by fd6cbaa
+  open_issues_2026-11-02: ["#8", "#14 (postponed)", "#20 to #24 (implement design verdicts (j) to (n))"]   # 2026-11-02: #16, #17, #18, #19 closed   # #15 closed 2026-10-29 by fd6cbaa
   labels_created: [correctness, gui]    # on top of GitHub's defaults
   milestones: none                 # wait for ROADMAP.md
 tracked:
@@ -296,8 +299,8 @@ not_written_on_purpose:
   - docs/dev/ROADMAP.md
   - docs/dev/NOTES.md
   - CI workflow
-test_suite: {passed: 246, skipped: 0, xfailed: 5, date: 2026-10-30, env: crimm-dev, tool variables: set}   # xfails: #16, #17, #18, #19 (two cases)
-test_suite_without_tool_variables: {passed: 188, skipped: 58, xfailed: 5, date: 2026-10-30}
+test_suite: {passed: 253, skipped: 2, xfailed: 0, date: 2026-11-02, env: crimm-dev, tool variables: set}   # the 2 skips: legacy contract tests under pandas 3 (#17)
+test_suite_without_tool_variables: {passed: 192, skipped: 63, xfailed: 0, date: 2026-11-02}
 env: crimm-dev                     # no separate env file
 crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul; sessions here import crimm 1816fbb from the worktree (section 3)
 directory: /home/ziqiaoxu/msld-prep   # /home/ziqiaoxu/msld-prep-tools is a symlink to it (G11)
@@ -354,6 +357,35 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-11-02 claude-opus/claude-code/fix-19-16-17-8
+
+- asked: commit and push the #18 work (done, `c987ac3`); fix #19; #16 by adding hydrogens with a warning;
+  #17 by pinning pandas below 3; #8 edit the README with the proposed changes. `[told 2026-11-02]`
+- did: #19 new `msldprep/mol2_reader.py` (`read_mol2_text`, `read_mol2_file`, `find_obabel`), used by
+  `LigandRecord.from_files`, `align.mol_from_mol2_text` (GUI upload) and `msld_prep_cli.py`. #16
+  `gui/service.py::_with_hydrogens`, summary field `hydrogens_added`, an orange line on the page. #17
+  `pyproject.toml` test extra `pandas<3`, skip marker in `tests/test_writers.py`. #8: items 1 to 3 were
+  already in `msldprep/gui/README.md`; every label, default and demo result checked against the page and
+  the session (35 lines, 33 aligned, the two failure messages, settings defaults, sdf fields); added the
+  hydrogen warning, the OpenBabel fallback, two troubleshooting rows and RDKit's extra sdf fields. Root
+  README and CONTRIBUTING updated. **Not committed.**
+- verified `[ran]`: suite 253 passed, 2 skipped (tool variables set); 192 passed, 63 skipped without;
+  254 passed under pandas 2.3.3 put first on `PYTHONPATH` from the scratchpad. #19: all 86 public ChEMBL
+  files with an rtf load through `from_files`, 20 via OpenBabel, formal charge equal to the rtf's, with both
+  OpenBabel installs; the GUI loads 11408 and 15723. #16: all 69 RDKit-readable ChEMBL files, stripped of
+  hydrogens and rebuilt, give the same structure, atom count and stereocenters.
+- found: RDKit's mol2 reader, for a file without hydrogens, guesses charges and radicals from the valence it
+  sees (an amine NH became N-, ring CH carbons radicals); hence the rule of keeping only charges the Sybyl
+  type fixes.
+- not verified: the page's new orange line in a browser (`app.js` parses with node 22; the text is plain).
+  #8 item 4, a reader other than the author, is still open, so #8 stays open.
+- then: the owner asked to commit and push. Commits `a3be5d6` (#19), `e938bda` (#16), `fb7d4b2` (#17),
+  `d89763c` (#8), then this docs commit; `CONTRIBUTING.md` split between #19 and #17 by staging a built
+  blob (`git update-index --cacheinfo`). Each commit's tree, exported alone, passes: 252 passed, 2 xfailed;
+  254, 1; 253, 2 skipped; 253, 2 skipped.
+- next: #24, #22, #23, #20, #21 (design verdicts), one change at a time; the README reader's feedback on #8
+  when it comes; lesson 5. Q12: the crimm override waits for a release.
 
 ### 2026-11-02 claude-opus/claude-code/fix-18
 
