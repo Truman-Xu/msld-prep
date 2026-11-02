@@ -28,8 +28,9 @@ export MSLDPREP_OBABEL_PATH=/export/apps/RockyOS8/openbabel/3.1.1/bin/obabel   #
 
 If a variable is unset, `cgenff` or `obabel` on `PATH` is used; failing that, the tests that
 need it skip. The command-line tool and `run_msld_prep_from_smiles.py` read the same CGenFF
-variables. No install path belongs in source or in example configs. One test also imports the unmodified
-legacy `msld_prm.py` from a sibling checkout, `../msld-py-prep`.
+variables. No install path belongs in source or in example configs. Two tests also import the unmodified
+legacy `msld_prm.py` from a sibling checkout, `../msld-py-prep`. It needs pandas < 3, which the
+`test` extra pins; under pandas 3 (as in `crimm-dev`) those two tests skip.
 
 ## Run the tests
 

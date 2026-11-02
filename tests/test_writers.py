@@ -49,6 +49,16 @@ def test_core_rtf_atom_charges_match_crn_result(written_outdir, crn_result, tran
     assert found > 0
 
 
+# The unmodified legacy msld_prm fills its bond matrix by chained assignment, which writes nothing under
+# pandas 3, so it would find no bonded terms and these tests would pass without testing anything (#17).
+# The test extra pins pandas < 3.
+requires_pandas_below_3 = pytest.mark.skipif(
+    int(__import__("pandas").__version__.split(".")[0]) >= 3,
+    reason="legacy msld_prm needs pandas < 3 (pinned in the test extra)",
+)
+
+
+@requires_pandas_below_3
 def test_downstream_msld_prm_contract(written_outdir, monkeypatch):
     """The real backward-compat check: feed our output into the unmodified,
     out-of-scope msld_prm.MsldPRM and confirm it runs without error -- this
@@ -81,12 +91,7 @@ def _prm_section_entries(path: str) -> dict[str, int]:
     return counts
 
 
-@pytest.mark.xfail(
-    int(__import__("pandas").__version__.split(".")[0]) >= 3,
-    strict=True,
-    reason="msld_prm fills its bond matrix by chained assignment, which writes nothing under pandas 3, "
-    "so it finds no bonded terms (#17)",
-)
+@requires_pandas_below_3
 def test_downstream_msld_prm_finds_bonded_terms(written_outdir, monkeypatch):
     sys.path.insert(0, LEGACY_REPO_ROOT)
     import msld_prm
