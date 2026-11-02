@@ -365,3 +365,36 @@ from its `MCS_for_MSLD.txt` and log, not re-run. Eight of these ligands need #19
 **Verdict 2026-10-30: keep the connected core for now, and revisit in lesson 6.** Reason: the multisite gain
 is large, but there is no evidence yet on what a lone, poorly fitting core atom does to charges or sampling.
 Lesson 6 runs old against new on the full series, which can supply it.
+
+## From the fix of #18
+
+### (p) One source file per run; every other file generated from it
+
+**Owner's direction 2026-11-02.** Concentrate a run's structure and setup information into as few recorded
+files as possible. Ideally one source file, after the full pipeline has run, from which `MCS_for_MSLD.txt`
+and every structure and control file can be regenerated. The same file is the checkpoint a run is picked up
+from. Later, integrate with the MSLD engines directly, so an experiment does not need dozens or hundreds of
+files.
+
+**Observed 2026-11-02.** A run of 4 ChEMBL ligands writes 43 files: 33 in the build, 9 in `aligned/`
+(`aligned_ligands.sdf` and a copy of each rtf and prm), and `MCS_for_MSLD.txt`. A build grows by 2 files
+per substituent; legacy's 32-ligand FAAH build has 78. Two of them are already checkpoints of a kind
+(`MCS_for_MSLD.txt`, `aligned_ligands.sdf`), and neither is complete on its own.
+
+**A principle the fix of #18 suggests: store inputs and decisions, derive the rest.** #18 was a checkpoint
+that dropped something. The fix does not add lone pairs to the file; it derives them again from each
+ligand's rtf by host atom, as legacy does. Lone pairs, anchors, sites and charges follow from the structures,
+the parameters, the settings and the person's decisions, so the source file needs only those, plus enough
+to check that a regenerated file matches (tool versions, perhaps the charges as a checksum).
+
+**Open, for the design:**
+
+1. What the file holds: the structures with coordinates and atom names, the CGenFF rtf and prm text, the
+   settings (a), the core and override decisions (b2), and which stage the run has reached.
+2. Its format: one structured text file with embedded structure blocks, or an archive.
+3. `MCS_for_MSLD.txt` becomes a generated view for people, and stays readable by legacy.
+4. How it relates to `core.save()` in (b4), which this extends from the core to the whole run.
+5. Which MSLD engine interface to aim for (for example pyCHARMM), which decides what still has to be
+   written as files.
+
+Related: (a), (b4), (d), and F-7 in `docs/dev/ISSUES_AND_PLANS.md`.
