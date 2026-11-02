@@ -76,11 +76,6 @@ def test_tied_and_far_ligands_are_flagged_on_their_core_line_and_reimport_unchan
     assert reimported.core_atom_names == raw_decomposition.core_atom_names
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="export_mcs_text writes no lone-pair names and import_mcs_text reads them only from SITE lines, "
-    "so the build step loses every lone pair (#18)",
-)
 def test_lone_pairs_survive_the_checkpoint_round_trip(raw_decomposition, all_ligands, tmp_path):
     def lone_pairs(decomposition):
         fragments = {(site.index, name): sorted(f.lp_atom_names) for site in decomposition.sites for name, f in site.fragments.items()}

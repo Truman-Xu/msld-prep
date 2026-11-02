@@ -30,7 +30,7 @@ from typing import Sequence
 from rdkit import Chem
 
 from .datamodel import CoreDecomposition, Fragment, LigandRecord, Site
-from .decompose import FAR_FROM_REFERENCE
+from .decompose import FAR_FROM_REFERENCE, _fold_in_lone_pairs
 from .errors import DecompositionError
 
 logger = logging.getLogger(__name__)
@@ -267,7 +267,9 @@ def import_mcs_text(path: str, ligands: Sequence[LigandRecord], *, core_id: int 
     """Read a (possibly hand-edited) MCS text file back into a CoreDecomposition.
 
     Re-derives anchor atom names structurally from each ligand's Mol rather
-    than trusting the file's (lossy) ANCHOR ATOMS section. `core_id` picks
+    than trusting the file's (lossy) ANCHOR ATOMS section. Lone pairs are not
+    in the file (legacy writes none either): each ligand's LONEPAIR records
+    are folded in by host atom, as `decompose_ligand_set` does. `core_id` picks
     which core group to read when the checkpoint has more than one (see
     `read_core_ids`); optional (and ignored) when it has just the one.
     """
@@ -310,9 +312,9 @@ def import_mcs_text(path: str, ligands: Sequence[LigandRecord], *, core_id: int 
         fragments: dict[str, Fragment] = {}
         for mol_name in parsed["mols"]:
             ligand = ligand_by_name[mol_name]
-            names = site_data.get(mol_name, [])
-            real_names = [n for n in names if not n.startswith("LP")]
-            lp_names = [n for n in names if n.startswith("LP")]
+            # Lone pairs are folded in from the ligand's own LONEPAIR records
+            # below, by host atom, so any LP name in the file is ignored.
+            real_names = [n for n in site_data.get(mol_name, []) if not n.startswith("LP")]
 
             name_to_atom = {
                 atom.GetProp("_TriposAtomName"): atom
@@ -334,10 +336,18 @@ def import_mcs_text(path: str, ligands: Sequence[LigandRecord], *, core_id: int 
                 site_index=site_index,
                 atom_indices=[name_to_atom[n].GetIdx() for n in real_names],
                 atom_names=real_names,
-                lp_atom_names=lp_names,
                 anchor_atom_names=anchors,
             )
         sites.append(Site(index=site_index, fragments=fragments))
+
+    core_lp_atom_names: dict[str, dict[str, str]] = {}
+    for mol_name in parsed["mols"]:
+        ligand_fragments = [site.fragments[mol_name] for site in sites]
+        core_lps = _fold_in_lone_pairs(
+            ligand_by_name[mol_name], core_atom_order, core_atom_names[mol_name], ligand_fragments
+        )
+        for ref_name, lp_name in core_lps.items():
+            core_lp_atom_names.setdefault(ref_name, {})[mol_name] = lp_name
 
     core_query_mol = _rebuild_core_query_mol(reference.mol, core_atom_order)
 
@@ -346,7 +356,7 @@ def import_mcs_text(path: str, ligands: Sequence[LigandRecord], *, core_id: int 
         core_query_mol=core_query_mol,
         core_atom_order=core_atom_order,
         core_atom_names=core_atom_names,
-        core_lp_atom_names={},
+        core_lp_atom_names=core_lp_atom_names,
         sites=sites,
         core_id=resolved_core_id,
     )

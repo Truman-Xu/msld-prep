@@ -96,6 +96,11 @@ def test_explicit_two_step_workflow_as_separate_process_invocations_would(tmp_pa
     )
     assert os.path.exists(os.path.join(outdir, "full_ligand.prm"))
     assert result.config.nsites == len(result.decomposition.sites)
+    # the checkpoint carries no lone pairs; step 2 must get them back from the rtfs (#18)
+    n_lone_pairs = sum(len(lig.lone_pairs) for lig in [reference2, *analogs2])
+    assert n_lone_pairs > 0
+    with open(os.path.join(outdir, "lpsites.inp")) as fp:
+        assert fp.read().count("LONEPAIR") == n_lone_pairs
 
 
 def test_run_pipeline_result_charge_conservation(tmp_path):
