@@ -40,13 +40,20 @@ Options:
 
 Changes to the page's own files (`msldprep/gui/static/`) show when you refresh the browser.
 
+Some mol2 files are refused by RDKit's mol2 reader: a nitro group typed `O.co2`, or a ring NH typed
+`N.ar`. The server then reads them through OpenBabel, if it can find the `obabel` program: set
+`MSLDPREP_OBABEL_PATH` to it before starting the server, or have `obabel` on `PATH`. Without it,
+such a file is refused with the reason.
+
 ## Walk-through with the demo
 
 The demo uses public data: the ChEMBL series of `examples/2_ChEMBL`.
 
 1. **Reference.** Choose `examples/2_ChEMBL/11896.mol2`. Below the button appear its atom count
    (with hydrogens), its net charge, any charged atoms and its stereocenters. "2D structure" opens
-   a drawing of it.
+   a drawing of it. If the file has no hydrogens, they are added, and a line in orange says how
+   many. RDKit places them, taking every atom as neutral except those whose atom type sets a charge
+   (`N.4`, a carboxylate's `O.co2`), so check the protonation before you go on.
 2. **Analogs.** Open `examples/gui_demo/analogs.txt`, or paste lines of the form `SMILES name`.
    A table with a name column also works. Press **Use these analogs**. The demo has 35 lines.
 3. **Align.** Press **Align all**. The list fills in as each analog finishes. With the demo, 33
@@ -107,7 +114,8 @@ Charges and hydrogen counts never affect the match; "Flag protonation changes in
 
 - **sdf**: one record per structure, the reference first if included. The record's title is the
   structure's name. Each record has a `Role` field (`reference` or `analog`), and each analog has
-  `AlignRMSD` and `AlignSeed`. Atom names are not stored.
+  `AlignRMSD` and `AlignSeed`. Atom names are not stored. Records may also carry fields RDKit adds
+  itself, such as `EmbedRMS` and `_TriposChargeType`; nothing here reads them.
 - **mol2**: Sybyl atom and bond types (the same typing as the notebook), **new unique atom names
   and no charges**. Both are deliberate: these files are written for CGenFF, which needs unique
   short atom names and computes its own charges. With **Keep the reference's atom names** checked,
@@ -128,6 +136,8 @@ The file names are `aligned_accepted.sdf`, `aligned_aligned_mol2.zip` and so on,
 | "Missing or wrong access token." | The address lost its `?token=...` part. Copy the whole address printed by the server. After a restart without `--token`, the token is new |
 | "Address already in use" at start | Another server uses the port you gave with `--port`. Leave `--port` out and a free one is picked |
 | The 3D view stays empty | The browser has no WebGL (some remote desktops and locked-down browsers turn it off). Use another browser or computer |
+| "Failed to load mol2 text: ..." for the reference | RDKit's mol2 reader refuses the file, and the reason follows. For a nitro group or a ring NH typed `N.ar`, restart the server with `MSLDPREP_OBABEL_PATH` set to the `obabel` program (see "Start it"). An sdf file of the same structure also works |
+| An orange line says hydrogens were added | The reference file had none. Check that the added hydrogens give the protonation you want; if not, load a file with hydrogens |
 | Every analog fails with a charged reference | Fixed (#9): charges no longer affect the match. If you still see it, report it with the reference file |
 | The core is much smaller than expected | Check that "Ignore bond orders" is on, and look for "Core search hit its time limit" in the details. Raise the limit for large molecules |
 | "An alignment is running; wait for it to finish." | One alignment job at a time. Wait for the list to finish |
