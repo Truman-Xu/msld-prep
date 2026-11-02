@@ -1,9 +1,11 @@
 import os
 
 import pytest
+from rdkit import Chem
 
 from msldprep.datamodel import LigandRecord
 from msldprep.errors import AlignmentError
+from msldprep.mol2_reader import find_obabel
 from msldprep.prm_records import parse_prm_text
 from msldprep.rtf_records import parse_rtf_text
 
@@ -24,21 +26,37 @@ def _load_reference():
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AlignmentError,
-    reason="RDKit's mol2 reader rejects a nitro O.co2 (11408) and cannot kekulize a ring NH typed N.ar (15723); "
-    "20 of the 89 public ChEMBL files fail (#19)",
-)
-@pytest.mark.parametrize("stem", ["11408", "15723"])
-def test_from_files_reads_every_public_example_form(stem):
-    ligand = LigandRecord.from_files(
+def _load_example(stem):
+    return LigandRecord.from_files(
         os.path.join(CHEMBL_DIR, f"{stem}.mol2"),
         os.path.join(CHEMBL_DIR, f"{stem}.rtf"),
         os.path.join(CHEMBL_DIR, f"{stem}.prm"),
         name=stem,
     )
-    assert ligand.mol.GetNumAtoms() > 0
+
+
+# RDKit's mol2 reader refuses 11408 (a nitro O.co2) and 15723 (a ring NH typed N.ar); 20 of the 89 public
+# ChEMBL files fail this way (#19). OpenBabel reads them instead.
+@pytest.mark.skipif(find_obabel() is None, reason="obabel not found: set MSLDPREP_OBABEL_PATH or put obabel on PATH")
+@pytest.mark.parametrize("stem", ["11408", "15723"])
+def test_from_files_reads_what_rdkit_refuses_through_openbabel(stem):
+    ligand = _load_example(stem)
+    with open(os.path.join(CHEMBL_DIR, f"{stem}.mol2")) as fp:
+        atoms = fp.read().split("@<TRIPOS>ATOM")[1].split("@<TRIPOS>")[0]
+    mol2_names = [line.split()[1] for line in atoms.splitlines() if line.strip()]
+    names = [atom.GetProp("_TriposAtomName") for atom in ligand.mol.GetAtoms()]
+    assert names == mol2_names
+    bonds = {frozenset((names[b.GetBeginAtomIdx()], names[b.GetEndAtomIdx()])) for b in ligand.mol.GetBonds()}
+    assert bonds == {frozenset(b) for b in ligand.bonds if not any(n.startswith("LP") for n in b)}
+    assert Chem.GetFormalCharge(ligand.mol) == round(ligand.net_charge)
+
+
+@pytest.mark.parametrize("stem, cause", [("11408", "atom types"), ("15723", "kekulize")])
+def test_without_openbabel_an_unreadable_mol2_is_refused_with_its_cause(stem, cause, monkeypatch):
+    monkeypatch.setenv("MSLDPREP_OBABEL_PATH", "")
+    monkeypatch.setenv("PATH", "")
+    with pytest.raises(AlignmentError, match=cause):
+        _load_example(stem)
 
 
 def test_from_files_populates_rtf_and_prm_fields_directly():

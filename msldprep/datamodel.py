@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from rdkit import Chem
 
-from .errors import AlignmentError
+from .mol2_reader import read_mol2_file
 from .prm_records import (
     LigandParameters,
     format_angle_line,
@@ -75,12 +75,7 @@ class LigandRecord:
         """Load a ligand from mol2 + rtf + prm, typing every atom with its
         CGenFF type/charge and attaching the parsed rtf/prm records.
         """
-        mol = Chem.MolFromMol2File(mol2_path, removeHs=False, sanitize=True)
-        if mol is None:
-            msg = f"Failed to load mol2 file `{mol2_path}` into RDKit."
-            logger.error(msg)
-            raise AlignmentError(msg)
-
+        mol = read_mol2_file(mol2_path)
         return cls.from_mol(
             mol, rtf_path, prm_path, name=name or mol2_path, is_reference=is_reference, mol2_path=mol2_path
         )

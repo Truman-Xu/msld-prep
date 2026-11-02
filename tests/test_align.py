@@ -6,6 +6,7 @@ from rdkit import Chem
 from msldprep import align
 from msldprep.datamodel import LigandRecord
 from msldprep.errors import AlignmentError
+from msldprep.mol2_reader import find_obabel
 
 from .conftest import ANALOG_STEMS, CHEMBL_DIR, REFERENCE_STEM
 
@@ -163,6 +164,15 @@ def test_mol_from_mol2_text_matches_the_file_loader(reference_ligand):
     assert [a.GetProp("_TriposAtomName") for a in mol.GetAtoms()] == [
         a.GetProp("_TriposAtomName") for a in reference_ligand.mol.GetAtoms()
     ]
+    assert mol.GetConformer().Is3D()
+
+
+@pytest.mark.skipif(find_obabel() is None, reason="obabel not found: set MSLDPREP_OBABEL_PATH or put obabel on PATH")
+def test_mol_from_mol2_text_reads_a_nitro_compound_through_openbabel():
+    # RDKit's mol2 reader refuses the nitro group's O.co2 (#19); the GUI's upload goes through OpenBabel then
+    with open(os.path.join(CHEMBL_DIR, "11408.mol2")) as handle:
+        mol = align.mol_from_mol2_text(handle.read())
+    assert Chem.MolToSmiles(Chem.RemoveHs(mol)) == "O=[N+]([O-])c1ccc2ncnc(Nc3ccc(Br)cc3)c2c1"
     assert mol.GetConformer().Is3D()
 
 

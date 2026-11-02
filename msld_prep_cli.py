@@ -64,6 +64,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from msldprep import align, analog_prep, grouping, io_mcs_text, pipeline  # noqa: E402
 from msldprep.datamodel import LigandRecord  # noqa: E402
 from msldprep.errors import MsldPrepError  # noqa: E402
+from msldprep.mol2_reader import read_mol2_file  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,10 @@ def _load_reference_from_file(
     """
     ext = os.path.splitext(path)[1].lower()
     if ext == ".mol2":
-        mol = Chem.MolFromMol2File(path, removeHs=False, sanitize=True)
+        try:
+            mol = read_mol2_file(path)
+        except MsldPrepError as exc:
+            raise SystemExit(str(exc)) from exc
     elif ext in (".sdf", ".sd", ".mol"):
         mol = Chem.MolFromMolFile(path, removeHs=False, sanitize=True)
         if mol is not None:

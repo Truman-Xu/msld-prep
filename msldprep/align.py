@@ -17,6 +17,7 @@ from rdkit.Chem.rdFMCS import AtomCompare, BondCompare, FindMCS
 
 from .datamodel import LigandRecord
 from .errors import AlignmentError
+from .mol2_reader import read_mol2_text
 from .rtf_records import assign_atom_types, parse_rtf_file
 
 logger = logging.getLogger(__name__)
@@ -177,19 +178,11 @@ def _check_3d(mol: Chem.Mol, source: str) -> None:
 def mol_from_mol2_text(text: str, *, require_3d: bool = True) -> Chem.Mol:
     """Parse one molecule from mol2 text, keeping explicit Hs and sanitizing,
     so a mol2 upload needs no temp file. Atoms carry `_TriposAtomName`.
+    What RDKit refuses goes through OpenBabel (`mol2_reader.read_mol2_text`).
     Raises AlignmentError if the text is not a single readable molecule, or
     (unless `require_3d` is False) has no 3D coordinates.
     """
-    try:
-        mol = Chem.MolFromMol2Block(text, sanitize=True, removeHs=False)
-    except Exception as exc:  # RDKit's parse errors are not a documented, closed set
-        msg = f"Could not parse mol2 text: {exc!r}"
-        logger.error(msg)
-        raise AlignmentError(msg) from exc
-    if mol is None:
-        msg = "Could not parse mol2 text."
-        logger.error(msg)
-        raise AlignmentError(msg)
+    mol = read_mol2_text(text)
     if require_3d:
         _check_3d(mol, "The mol2 text")
     return mol
