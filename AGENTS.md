@@ -7,11 +7,14 @@ and ALF input files. It is an RDKit-based, in-memory rewrite of the older `msld-
 scripts, and it builds on crimm's RTF and PRM parsers.
 
 **Before doing anything, read [`docs/dev/AGENT_HANDOFF.md`](docs/dev/AGENT_HANDOFF.md)**
-sections 0 to 5: protocol, the owner's standing instructions, environment facts, traps,
-current state and claims. Standards are in
+sections 0 to 4: protocol, the owner's standing instructions, environment facts and traps.
+Current state, claims and the session log are in the open GitHub issue labelled
+`agent-log` (`gh issue list --label agent-log --state open`): read its description and
+newest three comments. Standards are in
 [`docs/dev/BEST_PRACTICES.md`](docs/dev/BEST_PRACTICES.md); developer rules, which bind you
-too, are in [`CONTRIBUTING.md`](CONTRIBUTING.md). When you finish, log what you did in the
-handoff. There is no `ROADMAP.md` or `NOTES.md` yet; do not create them until the owner asks.
+too, are in [`CONTRIBUTING.md`](CONTRIBUTING.md). When you finish, post what you did as a
+comment on that issue and update its State (handoff, section 0); that needs no commit.
+There is no `ROADMAP.md` or `NOTES.md` yet; do not create them until the owner asks.
 
 The rules that matter most, in case you read nothing else:
 
@@ -23,7 +26,7 @@ The rules that matter most, in case you read nothing else:
   cluster users. Never remove or repoint it.
 - Do not edit anything in `/home/ziqiaoxu/crimm`, `/home/ziqiaoxu/crimm-ml` or
   `/home/ziqiaoxu/msld-py-prep`. They are separate projects. This project only reads them. If
-  a change is needed there, say so in your handoff entry and let the owner decide.
+  a change is needed there, say so in your log comment and let the owner decide.
 - Default test run: `pytest -p no:cacheprovider -q` (about 15 s). CGenFF-backed tests skip
   unless `MSLDPREP_CGENFF_PATH` is set, and OpenBabel-backed ones unless `MSLDPREP_OBABEL_PATH`
   is (or `obabel` is on `PATH`); a skipped test is not a pass. Python and environment

@@ -8,26 +8,44 @@ schema: agent-handoff/1
 repo: github.com/Truman-Xu/msld-prep   # public; first push 2026-10-08
 default_branch: main
 last_updated: 2026-11-07
+log: open issue labelled agent-log   # gh issue list --label agent-log --state open
 ```
 
 ## 0. Protocol
 
 Read this section fully. Skim the rest for what your task touches.
 
+This file holds what changes rarely: protocol, orientation, the owner's standing
+instructions, the environment and gotchas. What changes every session (STATE, CLAIMS and
+LOG) is in the open GitHub issue labelled `agent-log` (section 5), so that recording a
+session needs no commit.
+
 ### On arrival
 
 1. Read sections 1 to 4. They are short and change rarely.
-2. Read section 5 (STATE) and the newest three entries of section 8 (LOG).
+2. Read the `agent-log` issue: its description (CLAIMS and STATE) and its newest three
+   comments (LOG). `N=$(gh issue list --label agent-log --state open --json number -q
+   '.[0].number')`, then `gh issue view $N` and `gh issue view $N --comments`.
 3. Run `git status --short` and `git log --oneline -5`. If they disagree with STATE, trust
    git and correct STATE.
-4. Check section 6 (CLAIMS) before editing a file. If another agent holds it, do not edit it.
+4. Check CLAIMS before editing a file. If another agent holds it, do not edit it.
 
 ### On departure
 
-1. Append one entry to LOG (newest first, template in section 8).
-2. Update STATE so it is true now. Rewrite it in place; do not append.
-3. Release your CLAIMS.
-4. Move anything you learned that will still be true next month into FACTS or GOTCHAS.
+1. Post one LOG entry as a comment on the `agent-log` issue (template in the issue
+   description): `gh issue comment $N --body-file <file>`.
+2. Update STATE so it is true now. Re-read the description immediately before, edit it in
+   place, and write it back with `gh issue edit $N --body-file <file>`. Do not append.
+3. Release your CLAIMS in the same edit.
+4. Move anything you learned that will still be true next month into FACTS or GOTCHAS of
+   this file. That is a tracked change; commit it with your work.
+
+Without network access or `gh`, write the entry and the new STATE to local files and post
+them in your next session that has both.
+
+When the issue grows long (about 50 comments) or a milestone closes, open the next one
+(label `agent-log`) with the current STATE, link it from the old one, then close the old one
+and move the pin.
 
 ### Writing rules
 
@@ -41,16 +59,20 @@ Read this section fully. Skim the rest for what your task touches.
 - **State what you did not check.** A missing check written down is worth more than a
   confident guess.
 - **One fact, one place.** Link to another document instead of copying from it.
-- **Do not delete another agent's entry.** If it is wrong, add `SUPERSEDED YYYY-MM-DD by
-  <agent>: <why>` under it.
+- **Do not edit or delete another agent's entry.** If it is wrong, say so in your own
+  comment: `SUPERSEDED YYYY-MM-DD by <agent>: <why>`, with a link to the comment.
 - **Identify yourself** as `<model>/<tool>/<short task name>`, for example
   `claude-sonnet/claude-code/repo-setup`. You have no persistent identity; the task name is
   what lets others tell sessions apart.
+- **The log is public**, like this file. Comments appear under the GitHub account the agent
+  runs as, usually a person's, so the `<model>/<tool>/<task>` heading of your comment is
+  what tells sessions apart. Nothing about a particular machine or account in the log;
+  that goes in the owner's `CLAUDE.local.md`.
 - Keep entries terse. No preamble, no summaries of summaries.
 
 ### What goes where
 
-| Kind of information | File |
+| Kind of information | Place |
 | --- | --- |
 | How the code is built, conventions, architecture | `docs/dev/NOTES.md` (**not created yet**; the owner will ask for it) |
 | What work is planned, its order, its status | `docs/dev/ROADMAP.md` (**not created yet**; the owner will ask for it) |
@@ -59,10 +81,12 @@ Read this section fully. Skim the rest for what your task touches.
 | Standards the work should meet | `docs/dev/BEST_PRACTICES.md` |
 | Reference papers, as PDFs | `papers/` (git-ignored; never commit, the repository is public). If a paper can't be read online, tell the owner, who will download it `[told 2026-10-30]` |
 | Anything about crimm, which msldprep depends on | `/home/ziqiaoxu/crimm/docs/dev/AGENT_HANDOFF.md` (read-only for you) |
-| Who is doing what now, what was tried, what failed, traps, decisions | this file |
+| Who is doing what now, current state, what was tried, what failed, decisions | the `agent-log` issue (section 5) |
+| Questions an agent could not settle | an issue labelled `question` |
+| Protocol, standing instructions, environment facts, traps | this file |
 
 Until NOTES and ROADMAP exist, put structure facts under Orientation or Gotchas here, and open
-questions in section 7. Do not create the two files on your own.
+questions in issues labelled `question`. Do not create the two files on your own.
 
 ## 1. Orientation
 
@@ -110,6 +134,7 @@ Follow these unless the owner says otherwise in your own session.
 
 | Date | Instruction | Tag |
 | --- | --- | --- |
+| 2026-11-07 | Agent activity (state, claims, session log) is not kept in a tracked file. It goes in the open `agent-log` issue; open questions are issues labelled `question` (section 5). | `[told]` |
 | 2026-11-02 | Commit and push the day's work (this permission covers that push only). The owner will ask someone else to follow the GUI README (#8 item 4) and bring back their feedback. | `[told]` |
 | 2026-11-02 | **#16:** add hydrogens to a mol2 reference that lacks them, with a warning (done, `e938bda`). **#17:** pin pandas below 3 for the legacy tests (done, `fb7d4b2`). **#19:** read what RDKit refuses through OpenBabel, the owner's idea (done, `a3be5d6`). **#18** first (done, `b6f60bf`). **(p):** one source file per run, the owner's direction. | `[told]` |
 | 2026-10-30 | Update the handoff and agent memory, file issues for (j) to (n) (done, #20 to #24), commit and push (this permission covers that push only). | `[told]` |
@@ -235,852 +260,18 @@ Things that cost a previous agent time or would produce wrong results silently.
 | G13 | **Fix available 2026-10-30:** crimm `1816fbb` replaces `8075b75` (Q12); the notebook has not been re-run with it. Original text: `align.ipynb` reads its inputs from absolute paths in another lab member's directory, and was run only as far as cell 9. There it fails: `crimm/Adaptors/RDKitConverter.py::heterogen_to_rdkit` reads `het_res.pdbx_description`, which a `Residue` read from a CRD file lacks. The owner's hotfix is commit `8075b75` on crimm's local branch `RDKConverter-Het`, not the checked-out branch (`cleanup/phase0-tests-and-dev-docs`). Cells after 9 were not run. | `[ran 2026-10-08]` failure; `[inferred]` cause |
 | G14 | Rewriting history (`git filter-branch`, then `gc --prune=now`) was done on 2026-10-08 while nothing was pushed. **The repository is public and was pushed the same day, so from now on history rewrites are not a clean undo**: a published file stays in forks and caches. Check `git ls-files`, `git log --stat` and `git push --dry-run` before every push. | `[ran]` |
 
-## 5. State
-
-Rewrite in place. True as of `2026-10-16` (end of day), except where a line says otherwise; lines marked 2026-10-21, 2026-10-28, 2026-10-29, 2026-10-30 or 2026-11-07 were updated then.
-
-```yaml
-git:
-  branch: main
-  remote: origin git@github.com:Truman-Xu/msld-prep.git   # public, tracking origin/main; SSH since 2026-10-21
-  commits_total: 37 on 2026-10-16 (git rev-list --count HEAD); the list below is the history up to 2026-10-14
-  commits: thirty-one (history rewritten 2026-10-08 before the push, G14): snapshot, ChEMBL
-           examples, environment variables for tool paths, the unpublished-structures handoff
-           entry, then the push-day docs commit; on 2026-10-12 the handoff commit (crimm hotfix
-           path, GUI plan, learning-plan intent), `align_to_reference` (#3) and the text loaders (#3),
-           then this docs update; on 2026-10-14 four GUI commits (service #4, page #6, API #5, the
-           charged-reference documentation #9), then the mol2 export (#7), the handoff update, and the 2026-10-14 documentation commits (Closes rule, deliberate behaviors and F-11, handoff), then three on the same day for #9: the matching rewrite, the GUI panel and setting, the docs
-  pushed: everything, through the 2026-11-02 docs commit (each push at the owner's request, section 2); main is level with origin/main
-  commits_2026-11-02: b6f60bf (Closes #18), c987ac3 (docs), a3be5d6 (Closes #19), e938bda (Closes #16), fb7d4b2 (Closes #17), d89763c (GUI README, Part of #8), then the end-of-day docs commit; each tree tested on its own
-  commits_2026-10-30: 74fa94d (the owner's, ignore papers/), afc9004 (#19 xfail), 651ba62 (design verdicts (j) to (o)), then the end-of-day docs commit; all pushed at the owner's request
-  commits_2026-10-28: 248b646 (#1), 25d4299 (#10), 393d994 (#16 xfail), c894fe4 (#17 xfail), then the lesson-3 docs and handoff commit
-  commits_2026-10-16: test_structures ignored; #12 Uncharger removed; #13 MCS limit; #11 orientation (+ GUI note); #2 stereo in alignment (+ GUI) and the exact core placement f43e56d; GUI --reload, deselect, file-input scroll fix, American spelling; docs
-  branch_protection: none          # not set
-github:
-  issues: ["#1 reference and analog protonation states can mismatch", "#2 respect chirality of molecules through the pipeline",
-           "#3 to #8 alignment GUI milestones M0 to M5 (created 2026-10-12; M0 library support, M1 session service, M2 FastAPI API, M3 front end, M4 review and export, M5 docs)",
-           "#10 GUI option to keep the original atom names in the mol2 export (created 2026-10-14)",
-           "#4 and #8 were rewritten 2026-10-14 to match what was built; #5 to #7 still describe the first plan",
-           "#11 alignment embeds an arbitrary one of several equivalent symmetric matches (created 2026-10-14; was P-1 in the log entries of that day)",
-           "#12 (remove the Uncharger option), #13 (MCS time limit) and #11 (symmetric orientation) closed by commits 2026-10-16; #5 to #7 closed as built; #2 partly done (alignment only); #14 speed-up ideas open, the owner decides on 2026-10-19 whether to work on it",
-           "#9 alignment fails with \"molecule doesn't match the core\" when the reference has a charged atom (created 2026-10-14; closed by e670117 the same day)"]
-  commits_2026-10-29: 4f02e6d (design verdicts), fd6cbaa ((e), (i), Closes #15), b003554 ((f)), 80c8629 (docs), 9d00ab2 (checkpoint TIE wording, FAR flags), f309e9e (#18 xfail), then the end-of-day docs commit; all pushed at the owner's request
-  open_issues_2026-11-02: ["#8", "#14 (postponed)", "#20 to #24 (implement design verdicts (j) to (n))"]   # 2026-11-02: #16, #17, #18, #19 closed   # #15 closed 2026-10-29 by fd6cbaa
-  labels_created: [correctness, gui]    # on top of GitHub's defaults
-  milestones: none                 # wait for ROADMAP.md
-tracked:
-  - AGENTS.md, CLAUDE.md, CONTRIBUTING.md, README.md, LICENSE (GPLv3, copied from crimm's)
-  - pyproject.toml, .gitignore, .github/
-  - docs/dev/AGENT_HANDOFF.md, docs/dev/BEST_PRACTICES.md
-  - msldprep/, tests/, scripts/, data/, configs/, examples/2_ChEMBL, examples/gui_demo   # msldprep/gui/ included, committed since 2026-10-14
-  - docs/dev/ISSUES_AND_PLANS.md
-  - msld_prep_cli.py, run_msld_prep.py, run_msld_prep_from_smiles.py
-excluded_locally_unpublished_series:   # .git/info/exclude; never commit (G12)
-  - align.ipynb                    # the original, byte-identical to what the owner had (sha1 blob 9674a79)
-  - analogues.txt
-  - sil.mol2
-  - sil.prm
-  - sil.rtf
-  - cellz.yaml
-  - cellz_build.yaml
-  - silp.mol2                      # added 2026-10-14: the owner's protonated reference (net charge +3), uploaded to the cluster that day
-  - panel_a.smi                    # added 2026-10-14: the owner's SMILES of three analogs; was untracked and NOT excluded until then
-  - zoe_msld_prep.ipynb            # added 2026-10-21: a lab member's end-to-end legacy run of a panel; the PI plans to publish it with a workshop
-untracked_awaiting_owner_decision: none
-ignored_by_gitignore:
-  - build.*/
-  - work.*/
-  - papers/                        # the owner's reference PDFs, since 2026-10-30
-personal_files_not_in_repo:        # listed in .git/info/exclude
-  - CLAUDE.local.md                # imports the owner's agent-preferences note from the Obsidian vault
-  - .claude/commands/wrapup.md
-  - .claude/settings.local.json    # SessionStart hook that links the scratchpad into .scratch/
-not_written_on_purpose:
-  - docs/dev/ROADMAP.md
-  - docs/dev/NOTES.md
-  - CI workflow
-test_suite: {passed: 253, skipped: 2, xfailed: 0, date: 2026-11-02, env: crimm-dev, tool variables: set}   # the 2 skips: legacy contract tests under pandas 3 (#17); same counts on the second machine 2026-11-07
-test_suite_without_tool_variables: {passed: 192, skipped: 63, xfailed: 0, date: 2026-11-02}   # same on the second machine 2026-11-07
-env: crimm-dev                     # no separate env file
-crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul; cluster sessions import crimm 1816fbb from the worktree (section 3); on the workstation (2026-11-07) crimm is the editable checkout, whose branches all contain master b7a2b6e (the #59 fix), so no override there
-directory: /home/ziqiaoxu/msld-prep   # /home/ziqiaoxu/msld-prep-tools is a symlink to it (G11)
-working_clone_2026-11-07: development moved to a second machine, the owner's workstation; its clone, env, tool paths
-           and push access are in CLAUDE.local.md (untracked, kept in sync on both machines). Section 3 still describes
-           the cluster clone above, which stays and backs the published msld-prep-tools path: after a push from the
-           workstation, fast-forward it (git pull --ff-only)
-library_code_changed_by_agents: since 2026-10-12, msldprep/align.py (align_to_reference, McsOptions, orientation, stereo, exact core placement) and the new msldprep/gui/; see the log
-code_changed_by_agents_2026-10-08:
-  - tests/test_analog_prep.py, tests/test_sybyl_typer.py (tool paths from environment)
-  - msld_prep_cli.py (cgenff defaults from environment), run_msld_prep_from_smiles.py,
-    configs/from_smiles_example.yaml
-```
-
-## 6. Claims
-
-A claim says "I am editing this; stay out". Add a row when you start, remove it when you
-stop. A claim older than 24 hours with no matching LOG entry is stale; take it and log that
-you did.
-
-| Path or area | Agent | Since | Purpose |
-| --- | --- | --- | --- |
-| (none) | | | |
-
-## 7. Open questions
-
-Things an agent could not settle. Answer one by replacing it with a dated FACT, GOTCHA or
-ROADMAP row.
-
-| ID | Question | Raised |
-| --- | --- | --- |
-| Q1 | Which licence? **ANSWERED 2026-10-08 by the owner:** GPLv3. `LICENSE` added. | 2026-10-08 |
-| Q2 | Where is the repository? **ANSWERED 2026-10-08:** `https://github.com/Truman-Xu/msld-prep.git`, empty when created. Remote added locally. Whether anyone besides `@Truman-Xu` owns an area is not answered; `CODEOWNERS` lists only the owner. | 2026-10-08 |
-| Q3 | Which loose files are committed? **ANSWERED 2026-10-08:** `build.*/`, `work.*/` ignored; `examples/` committed; `align.ipynb` was to be committed and then withdrawn (below). Still open, the owner decides later: `TODO.md`. | 2026-10-08 |
-| Q4 | One snapshot or split commits? **ANSWERED 2026-10-08:** one snapshot. | 2026-10-08 |
-| Q5 | Project name? **ANSWERED 2026-10-08:** repo `msld-prep`, directory `/home/ziqiaoxu/msld-prep` with `/home/ziqiaoxu/msld-prep-tools` kept as a symlink (G11). Package stays `msldprep`. Not asked: rename the package to `msld_prep`? It would break users of the published path. | 2026-10-08 |
-| Q6 | Which crimm version? **DEFERRED 2026-10-08 by the owner:** latest PyPI release, unpinned, until the crimm overhaul is done; then pin. The suite was checked against PyPI 2026.2.2 (section 3). | 2026-10-08 |
-| Q7 | CGenFF path in tests? **ANSWERED 2026-10-08:** now `MSLDPREP_CGENFF_PATH` (section 3). | 2026-10-08 |
-| Q8 | Which env? **ANSWERED 2026-10-08:** `crimm-dev`; it has every dependency. | 2026-10-08 |
-| Q9 | Move the remaining hard-coded tool paths to environment variables? **ANSWERED 2026-10-08:** yes, done for tracked files (section 3). | 2026-10-08 |
-| Q10 | `align.ipynb` outputs and another user's paths? **ANSWERED 2026-10-08, superseded by Q11:** the owner asked for outputs stripped and the inputs copied in; then withdrew it because the notebook and its inputs hold unpublished structures. The notebook stays local and untracked. | 2026-10-08 |
-| Q11 | May the notebook's inputs, or anything built from the analog series, be published? **ANSWERED 2026-10-08 by the owner:** no. See the standing instruction. The public status of what *is* committed was checked before the push: all 375 tracked files under `examples/2_ChEMBL` are byte-identical to files tracked in the public `Vilseck-Lab/msld-py-prep` (anonymous `git ls-remote` works); the quinazoline SMILES in `configs/` match that public example; the SMILES in `tests/test_grouping.py` are generic biaryl compounds, not the unpublished series (`[read]`; the owner did not confirm that last point). | 2026-10-08 |
-| Q12 | **UPDATE 2026-11-02 `[ran]`:** crimm PR #121 merged the fix into `master` on 2026-10-30 (squashed as `b7a2b6e`) and closed crimm #59; not in a release yet (PyPI 2026.2.2, newest GitHub release 2026.2.1), so the override stays. **UPDATE 2026-10-30 `[told]`, `[ran]`:** the fix is pushed as crimm `1816fbb` on `fix/59-rdkit-plain-residue` (crimm #59 open, no PR, 1 ahead of and 7 behind `master`; PyPI still 2026.2.2). **Still open:** (1) when it reaches a crimm release, remove the `PYTHONPATH` override from `.claude/settings.local.json`, and record that version in section 3; (2) re-run the notebook from cell 9, which the worktree now allows but nobody has done. `align.ipynb` fails at cell 9 on the checked-out crimm branch (G13). **PLAN 2026-10-08 `[told]`:** the fix is crimm's `RDKConverter-Het` (`8075b75`), which will not be published soon. Crimm's handoff (section 2, Orientation and log) tells its agents to remind the owner when it is published. Until then the notebook cells after 9 cannot be run on the checked-out crimm branch. Crimm is not ours to change. When reminded: re-run the notebook from cell 9, and record the crimm version that contains the fix in section 3. | 2026-10-08 |
-| Q13 | **2026-10-30: the paper is in `papers/nihms-1851979.pdf` and was read in full, with its SI beside it; the 0.001 e figure is confirmed, and Q-RMSD is over all atoms with lone pairs, see design note (j).** **2026-10-29: lesson 4 (parameters, CHARMM/ALF files) done; lesson 5 next.** **2026-10-28: lesson 3 (CRN) done.** **STARTED 2026-10-21 `[told]`: lessons 1 and 2 done; notes in `/home/ziqiaoxu/obsidian/msld-prep/` (section 2, 2026-10-21). Design question (1) answered by reading: legacy `msld_mcs.py` step (7) deduplicates fragments per site (`UFrag`).** Earlier: item 2, POSTPONED 2026-10-14 by the owner until after the GUI demo `[told]`. Write the learning plan for the legacy pipeline (standing instruction 2026-10-12). Seed `[read 2026-10-12]`, nothing run: **sources** are the workshop notebook `BrooksResearchGroup-UM/MSLD-Workshop`, `4msld-py-prep/faah_prep/MSLD_Py_Prep.ipynb` (58 cells), and Vilseck, Cervantes, Hayes, Brooks, JCIM 2022, 62, 1479, DOI 10.1021/acs.jcim.2c00047. **Legacy modules** in `/home/ziqiaoxu/msld-py-prep`: `msld_py_prep.py` (driver, run twice), `msld_chk.py`, `msld_mcs.py`, `msld_mcs_rdecomp.py`, `msld_crn.py` (charge renormalization and most writers), `msld_prm.py`, `msld_wrt.py`, `vis_check.py`, `CRN_Plugin/`, `Lg_Solvate.sh`, `bookending_corrections/`; the legacy repo has no tests. **Worked example** `examples/1_FAAH` (2 sites, 33 substituents): read `NOTES`, `mol_list.txt`, `1.mol2/.rtf/.prm/.str`, `MCS_for_MSLD.txt`, then `build.name/` (`core.rtf`, `core.pdb`, `site1_sub1_pres.rtf`, `site1_sub1_frag.pdb`, `site2_sub1_pres.rtf`, `lpsites.inp`, `full_ligand.prm`, `translation.txt`, `name.inp`); `examples/2_ChEMBL/msld_py_prep.log` shows a bad core. **Why CRN:** substituents at a site coexist in one system, so each needs the same net charge and the core one shared charge set; CRN averages and redistributes charge with minimal change (the paper ties charge RMSD above about 0.001 e to changed free energies). **Design questions to answer by reading, none verified:** (1) legacy deduplicates identical fragments per site (`NSUBS 19 24` for 31 ligands), msld-prep appears not to (`nsubs` 34 34 34 for 34 ligands in `build.chembl_congeneric`): intended or regression? (2) does the proportional redistribution in `crn.py` meet the same constraints as the legacy cyclic 1e-6 loop? (3) legacy `.str` splitting has no counterpart on the `from-files` path, and its config comment about `.str` may be stale; (4) which output files do CHARMM or ALF really read, and which are review artefacts only (decides "fewer saved files"); (5) `bookending_corrections/` and `Lg_Solvate.sh` have no counterpart here. **Proposed format:** per-module notes with a worked trace of one small example, a by-hand CRN exercise on two or three ligands, a side-by-side old/new run on `examples/1_FAAH` and `2_ChEMBL`, then a session with colleagues on CHARMM. Where the plan file lives is the owner's call; no `ROADMAP.md` or `NOTES.md` until asked. | 2026-10-12 |
-
-## 8. Log
-
-Newest first. Append only. Template:
-
-
-```markdown
-### YYYY-MM-DD <model>/<tool>/<task>
-
-- asked:
-- did:
-- verified:
-- not verified:
-- found:
-- next:
-```
-
-### 2026-11-07 claude-opus/hermes/move-to-workstation
-
-- asked: move development from the cluster to the owner's workstation, set up the same way as crimm there
-  (project facts, synced agent memory, end-of-day wrap-up); copy `align.ipynb`, `test_structures/` and
-  `papers/` across; set up push access for this repository only. Update LOG and STATE. `[told 2026-11-07]`
-- did: nothing in tracked files except this entry and STATE. On the workstation: a clone of `main` at
-  `b477316`; the cluster clone's `.git/info/exclude` entries copied in (G12: a fresh clone has none, so the
-  unpublished series was unprotected until then); the GUI packages added to its `crimm-dev`; tool
-  variables set in the env and its Jupyter kernel; the legacy `msld-py-prep` cloned beside the repository
-  (same commit as the cluster's). Machine facts went into `CLAUDE.local.md`, which is now kept identical on
-  both machines together with `.claude/commands/` and the agent memory directory.
-- verified `[ran]`: suite on the workstation 253 passed, 2 skipped (tool variables set), 192 passed,
-  63 skipped without, the same as on the cluster on 2026-11-02; the three copied paths match the cluster's
-  by sha256 (12 files) and are ignored by git; fetch and a dry-run push to this repository work from the
-  workstation, and the same credential is refused write access to crimm.
-- not verified: `align.ipynb` on the workstation (it reads absolute cluster paths, G13). The GUI in a
-  browser on the workstation.
-- found: on the workstation crimm is the editable checkout of its own clone, so whatever branch is checked
-  out there decides what msldprep imports (as G2 on the cluster); on 2026-11-07 every branch seen contained
-  crimm `b7a2b6e` (#59). The cluster clone stays at the same commit and backs the published path (G11); it
-  is fast-forwarded after a push from the workstation, never edited in parallel.
-- next: unchanged from 2026-11-02: #24, #22, #23, #20, #21 one at a time; the #8 reader's feedback; lesson 5.
-
-### 2026-11-02 claude-opus/claude-code/fix-19-16-17-8
-
-- asked: commit and push the #18 work (done, `c987ac3`); fix #19; #16 by adding hydrogens with a warning;
-  #17 by pinning pandas below 3; #8 edit the README with the proposed changes. `[told 2026-11-02]`
-- did: #19 new `msldprep/mol2_reader.py` (`read_mol2_text`, `read_mol2_file`, `find_obabel`), used by
-  `LigandRecord.from_files`, `align.mol_from_mol2_text` (GUI upload) and `msld_prep_cli.py`. #16
-  `gui/service.py::_with_hydrogens`, summary field `hydrogens_added`, an orange line on the page. #17
-  `pyproject.toml` test extra `pandas<3`, skip marker in `tests/test_writers.py`. #8: items 1 to 3 were
-  already in `msldprep/gui/README.md`; every label, default and demo result checked against the page and
-  the session (35 lines, 33 aligned, the two failure messages, settings defaults, sdf fields); added the
-  hydrogen warning, the OpenBabel fallback, two troubleshooting rows and RDKit's extra sdf fields. Root
-  README and CONTRIBUTING updated. **Not committed.**
-- verified `[ran]`: suite 253 passed, 2 skipped (tool variables set); 192 passed, 63 skipped without;
-  254 passed under pandas 2.3.3 put first on `PYTHONPATH` from the scratchpad. #19: all 86 public ChEMBL
-  files with an rtf load through `from_files`, 20 via OpenBabel, formal charge equal to the rtf's, with both
-  OpenBabel installs; the GUI loads 11408 and 15723. #16: all 69 RDKit-readable ChEMBL files, stripped of
-  hydrogens and rebuilt, give the same structure, atom count and stereocenters.
-- found: RDKit's mol2 reader, for a file without hydrogens, guesses charges and radicals from the valence it
-  sees (an amine NH became N-, ring CH carbons radicals); hence the rule of keeping only charges the Sybyl
-  type fixes.
-- not verified: the page's new orange line in a browser (`app.js` parses with node 22; the text is plain).
-  #8 item 4, a reader other than the author, is still open, so #8 stays open.
-- then: the owner asked to commit and push. Commits `a3be5d6` (#19), `e938bda` (#16), `fb7d4b2` (#17),
-  `d89763c` (#8), then this docs commit; `CONTRIBUTING.md` split between #19 and #17 by staging a built
-  blob (`git update-index --cacheinfo`). Each commit's tree, exported alone, passes: 252 passed, 2 xfailed;
-  254, 1; 253, 2 skipped; 253, 2 skipped.
-- next: #24, #22, #23, #20, #21 (design verdicts), one change at a time; the README reader's feedback on #8
-  when it comes; lesson 5. Q12: the crimm override waits for a release.
-
-### 2026-11-02 claude-opus/claude-code/fix-18
-
-- asked: remind the working items; fix #18; record the owner's idea of one source file per run; commit and
-  push. `[told 2026-11-02]`
-- did: `import_mcs_text` folds each ligand's lone pairs in by host atom (`decompose._fold_in_lone_pairs`),
-  so the checkpoint file is unchanged. Strict xfail removed; the two-step pipeline test checks
-  `lpsites.inp`. Design note (p) in both copies.
-- **changed output** (AGENTS: "a change to what is written"): `build_from_core_definition` and the `build`
-  CLI command now write lone pairs into the patches, `core.rtf`, `lpsites.inp` and `<name>.inp`, and the
-  charges change for any ligand with lone pairs. Example: FAAH ligand 1's fragment patch was −0.033 e
-  net, now 0.000. `MCS_for_MSLD.txt` is byte-identical.
-- verified `[ran]`: both steps on ChEMBL 11896, 10749, 10322, 10870 and FAAH 1, 13, 31, before and after:
-  `lpsites.inp` 0 of 4 and 0 of 2 lone pairs before, 4 and 2 after; build charges now identical to the
-  in-memory decomposition's. Suite 247 passed, 4 xfailed with tool variables; 189 passed, 58 skipped,
-  4 xfailed without.
-- found: against legacy's FAAH `lpsites.inp` ours writes `CL0A` and `DIST 1.64` where legacy writes `Cl0A`
-  and `DIST 1.6400`; this predates the fix. Whether CHARMM minds was not checked.
-
-### 2026-10-30 claude-opus/claude-code/wrapup
-
-- asked: add the stronger flag to (j); wrap up; then update the handoff and agent memory, file the issues for
-  (j) to (n), commit and push. `[told 2026-10-30]`
-- did: recorded the flag in both copies of the notes, with the issue numbers. Filed one issue per verdict,
-  **#20** (j), **#21** (k), **#22** (l), **#23** (m), **#24** (n), each with acceptance criteria. Commits
-  `afc9004`, `651ba62`, then this docs commit.
-- verified `[ran]`: suite 246 passed, 5 xfailed (tool variables set) just before the commits; the changes hold
-  no structures from the unpublished series (searched the diff for its file names; they appear only as names
-  already in this file); `git push --dry-run` first (G14). #24 notes that the writers' handling of a site that
-  keeps two anchors in the core is **unchecked**, and #21 that the `N011` figures did not check which site it
-  bonds to.
-- not verified: nothing implemented, so none of the verdicts has been run through the pipeline or CHARMM.
-- next: **#18 first**, since it changes the charges `build` writes. Then #24, #22, #23, #20, #21, one change
-  at a time; each changes what is written or reported, except that #21 needs #20. Owner decides #16, #17.
-  #19: the OpenBabel route is tested, not in the library. Then lesson 5. Q12: the `PYTHONPATH` override waits
-  for crimm #59 to reach a release, and `align.ipynb` still has to be re-run from cell 9.
-
-### 2026-10-30 claude-opus/claude-code/lesson-3-review
-
-- asked: review the conclusions: (n) the exact legacy rule is the default; the SI is in `papers/`; (o) as
-  recommended, revisit in lesson 6. `[told 2026-10-30]`
-- did: recorded (n) and (o), and the SI check in (j), in both copies of the notes; lesson 3 and the learning
-  plan updated. No code changed. Not committed.
-- verified `[ran]`: Tables S1 to S6 parsed with `pdftotext -layout`: 191 molecules, and the means match
-  Table 1 for all six series. Charges in `examples/1_FAAH/build.name` (`core.rtf`, `site*_pres.rtf`, with
-  `MCS_for_MSLD.txt` and `translation.txt`), against each ligand's rtf, RMS over all atoms including lone pairs:
-  all 32 values of Table S6 to six decimals. Atoms within a type were paired by charge order. Without lone
-  pairs the largest difference is 0.000019 e; heavy atoms only, 0.0023 e.
-- found: the 0.001 e flag fires on 137 of 191 molecules and misses none of the 27 with abs(ΔΔG) above 0.5
-  kcal/mol; a second, stronger level is an open part of (j). Legacy's example core is 21 atoms with
-  `NSUBS 32 1`, while msld-prep's is 31 atoms and one site, as (f) intends.
-- not verified: the SI's ΔΔG figures themselves (read, not recomputed); all flag figures are hydration, and 41
-  of the 47 molecules above 0.01 e are from one series.
-- next: owner decides the second flag level in (j), #16, #17. Otherwise as the entry below, without (o).
-- SUPERSEDED 2026-10-30 by claude-opus/claude-code/wrapup, for the second flag: the owner adopted it the same
-  day, see the entry above.
-
-### 2026-10-30 claude-opus/claude-code/crimm-59-docs
-
-- asked: crimm's `RDKConverter` hotfix was just pushed; update the docs here. `[told 2026-10-30]`
-- did: updated section 2, section 3, G13, Q12 and STATE. Old text kept with dated notes. Nothing in crimm
-  was touched; only read commands and `git ls-remote` were used there. Not committed.
-- verified `[ran]`: `1816fbb` on `origin/fix/59-rdkit-plain-residue`; `crimm-hotfix` checked out at it and
-  clean; compare with `master`: 1 ahead, 7 behind; no PR for the branch; crimm #59 open; PyPI newest
-  2026.2.2. On that commit: crimm's `tests/test_rdkit_converter.py` 4 passed; this suite 246 passed,
-  5 xfailed. `grep`: nothing in `msldprep`, `tests`, `scripts` or the root scripts uses the converter.
-- not verified: `align.ipynb` past cell 9 (needs another lab member's files). The fix's own behavior beyond
-  crimm's four tests.
-- next: when crimm #59 reaches a release, remove the `PYTHONPATH` override and pin per Q12.
-
-### 2026-10-30 claude-opus/claude-code/lesson-3-verdicts
-
-- asked: make the design decisions on lesson 3. Then: (j) to (m) as recommended, (n) keep the legacy
-  behavior with an easy way to move anchors out; the paper is in `papers/`; say when a paper can't be
-  read online; try OpenBabel to sdf for the mol2 files that fail to kekulize. `[told 2026-10-30]`
-- did: re-measured CRN at `61030bc` (scripts in the session scratchpad, not kept). Verdicts in both copies
-  of the design notes, (k) corrected, new open note (o); update section in vault lesson 3. Filed **#19** with
-  a strict xfail (`tests/test_datamodel.py`), and posted the OpenBabel results on it. No library code
-  changed. **Nothing committed**; the owner did not ask.
-- verified `[ran]`: suite 246 passed, 5 xfailed (tool variables set); 188 passed, 58 skipped, 5 xfailed
-  without. FAAH 1, 13, 31 with anchors in the core: RMS 0.00023 e, as lesson 3's legacy figure. FAAH all 32
-  with anchors out: no core position varies, no fragment atom changes (`compute_crn`). OpenBabel 3.2.1 plus
-  the nitro repair: all 20 failing files load with atom order, coordinates, rtf bonds and net charge
-  intact; 66 control files unchanged.
-- found: (1) most of the charge change comes from core averaging, not from (l) or (m). (2) The pattern rule
-  looks one bond out, so a core atom can pass it with a varying charge (`N011`, ChEMBL 34 ligands). (3) #19.
-  (4) Note (o): on the 31 ChEMBL ligands legacy's core is disconnected and gives `NSUBS 19 24`; msld-prep's
-  connected core gives `NSUBS 31`. My identity key for substituents was wrong twice before it was right; see (l).
-- not verified: no CHARMM run; all CRN figures are in memory, so #18's lone-pair loss is not in them, and
-  no series with differing net charges was tried. Legacy's `NSUBS 19 24` read from its file, not re-run.
-  The paper's Supporting Information was not available, and its main text does not say which atoms Q-RMSD
-  covers. OpenBabel 3.1.1 not tried for the conversion. Effect of larger fragments on sampling not measured.
-- next: #18 first; implement (j) to (n), which also changes what is written (`NSUBS`, charges, the anchor
-  default); fix #19; owner decides (o), #16, #17; lesson 5.
-
-### 2026-10-29 claude-opus/claude-code/checkpoint-flags-lesson-4
-
-- asked: reword `# TIE` and write far-off core atoms into the checkpoint, commit and push; deliver
-  lesson 4 to the vault; at the day's end, update this handoff, commit and push the docs, file the
-  lone-pair bug. `[told 2026-10-29]`
-- did: `9d00ab2` (TIE reworded for the 3D placement; `# FAR:` names core atoms more than 1.1 A off;
-  importer ignores both; test). Lesson 4 in the vault (`lesson-04-parameters-and-charmm-files.md`,
-  learning plan updated), design note (n) in both copies. Filed **#18** with a strict xfail
-  (`f309e9e`).
-- verified `[ran]`: suite 246 passed, 3 xfailed (tool variables set); 188 passed, 58 skipped,
-  3 xfailed without. Lesson 4: legacy `MsldPRM` + `writeALF_Files` (autogrow env) and msld-prep's two
-  steps on FAAH 1, 13, 31 (poses kept): `full_ligand.prm` identical as numbers (54 terms); `<name>.inp`
-  the same structure apart from atom names and one blank line.
-- found: (1) #18, lone pairs lost in the checkpoint round trip (G20); predates the day's core
-  changes. (2) Legacy keeps the anchors of a site attached at two points (`DUM`) in the core
-  (`msld_crn.py:253`); msld-prep moves every anchor out: design note (n), open. (3) Legacy writes
-  `translation.txt` into the working directory (`msld_crn.py:740`), not the build.
-- not verified: CHARMM keyword meanings in lesson 4 against `block.doc`; ALF's own file reading (ALF
-  not opened); no CHARMM run.
-- next: fix #18 (changes what the checkpoint carries); owner decides (j) to (n), #16, #17; lesson 5.
-
-### 2026-10-29 claude-opus/claude-code/core-rule-e-f
-
-- asked: define "candidate"; draw FAAH 1, 13, 31 with atom names (vault lesson 2); can the legacy
-  neighbor-type rule run on `FindMCS`; record verdicts (e) to (i); build (e) and (f), fix #15.
-  `[told 2026-10-29]`
-- did: prototype `scripts/pattern_mcs.py` (vault); design notes (e) to (i) with verdicts, both copies
-  (`4f02e6d`, pushed). `fd6cbaa`: `align.atom_pattern`, `assign_pattern_labels` (replace
-  `get_all_atom_types`/`assign_isotope_labels`), `find_shared_core` on `RemoveAllHs` copies
-  (`CompareIsotopes`, `CompareAny` bonds, `ringMatchesRingOnly`, rings may be cut); `decompose` adds
-  core hydrogens (`_with_core_hydrogens`) and makes sites the connected non-core pieces
-  (`_fragment_components`, `_group_anchor_positions`, `assign_fragment_atoms`). `b003554`:
-  `choose_core_placements` (3D) replaces `match_core`; `far_core_atoms`, field
-  `CoreDecomposition.far_core_atoms`.
-- verified `[ran]`: full suite 245 passed, 2 xfailed (tool variables set); 187 passed, 58 skipped
-  without. ChEMBL 4 ligands: core {N009 C010 N011 C012 C016 C017} + 2 H and two sites, **identical to
-  legacy `msld_mcs` on the same files**. FAAH 1, 13, 31: core 18 heavy + 13 H, one site
-  (C009-C012), as legacy; core search 39 s → 0.01 s. FAAH 32 from input poses: legacy core + the 5
-  positions legacy dropped by distance, one site, 21 ligands flagged in `far_core_atoms`.
-- changed output (AGENTS: "a change to what is written"): cores, sites and core atom order change for
-  any series (hydrogens now follow their heavy atom in the core order); file formats are unchanged.
-  **Behavior change beyond the verdicts:** separate substituents on neighboring core atoms are now
-  separate sites (legacy's rule); before, bonded anchors shared a site. **Confirmed by the owner
-  2026-10-29** after seeing the ring-cut pictures ("the correct way to deal with it").
-- not done: the checkpoint's `# TIE` comment (`io_mcs_text`) still says "identical anchor pattern;
-  first match picked", and `far_core_atoms` is not written to `MCS_for_MSLD.txt` or shown anywhere but
-  the log; both are output changes for the owner to decide. Not run: the CLI or `run_msld_prep.py`
-  end to end on a real series beyond the tests.
-- mistake: I committed `fd6cbaa` and `b003554` without the owner asking for commits (asked only to build);
-  local only, not pushed. Undo, if wanted, with `git reset --soft 4f02e6d`, which keeps the changes.
-- then: the owner kept the two commits and asked to commit the docs and push (this permission
-  covered that push only).
-- next: owner decides the checkpoint's `# TIE` wording and whether far-off atoms go into
-  `MCS_for_MSLD.txt`; design notes (j) to (m); #16, #17; lesson 4.
-
-### 2026-10-28 claude-opus/claude-code/protonation-atom-names-lesson-3
-
-- asked: remind the working items after a week; plan the session; then #1 and #10, commits and push,
-  then lesson 3 (CRN). `[told 2026-10-28]`
-- did: #1 `McsOptions.check_protonation` + `CoreAlignment.protonation_differences` (charge or total
-  degree differs; a substituent in place of an H is not reported), GUI setting and lines (`248b646`,
-  Closes #1). #10 `assign_unique_atom_names(keep_existing=)`, `export(keep_names=)`, API and
-  checkbox (`25d4299`, Closes #10). Filed **#16** with a strict xfail (`393d994`). Pushed over SSH at
-  the owner's request. Lesson 3 in the vault (`lesson-03-charge-renormalization.md`), design notes
-  (j) to (m) in both copies. Filed **#17** with a strict xfail
-  (`tests/test_writers.py::test_downstream_msld_prm_finds_bonded_terms`, xfail only when pandas >= 3).
-- verified `[ran]`: full suite 237 passed, 3 xfailed with tool variables; 179 passed, 58 skipped,
-  3 xfailed without. Each of the three commits' trees tested on its own (exported to the
-  scratchpad); `app.js` parses with node 22 (`/home/ziqiaoxu/.conda/envs/juplab/bin/node`;
-  `/usr/bin/node` is too old for `??`). Lesson 3: legacy CRN rerun on FAAH 13, 31, 1 matches a hand
-  calculation to 1e-6; msld-prep's CRN meets the legacy constraints.
-- not verified: the new GUI controls in a browser (no one opened the page); the `autogrow` env was
-  checked for pandas and numpy only.
-- found: (1) mol2 references without H get none (#16). (2) Legacy needs pandas < 3, and the msld_prm
-  contract test was vacuous (#17, G10). (3) On FAAH 13, 31, 1 msld-prep splits the substituted
-  phenyl into two sites and changes charges 14× more (RMS) than legacy: design note (k).
-  (4) msld-prep averages the site charge per ligand, legacy per unique fragment: design note (l).
-- mistake, fixed before the push: my first split put one #10 test into the #16 commit; redone with
-  `git reset --soft` and `--amend`, with a backup branch (deleted after the push); final tree
-  unchanged.
-- next: owner decides #15, #16, #17 and design notes (j) to (m); lesson 4 (`msld_prm.py`,
-  `msld_wrt.py`, `name.inp`; run legacy in `autogrow`); #8 still needs a reader other than the author.
-
-### 2026-10-21 claude-opus/claude-code/learning-lessons-1-2
-
-- asked: remind the working items; start learning the legacy `msld-py-prep` to re-design the software;
-  then: postpone #14, run the full suite, switch `origin` to SSH, rewrite #1 and #2 to the owner's
-  meaning, write the GUI README (#8), clarify design note (a), suggest a script workflow (b), put the
-  lessons in the Obsidian vault, run the legacy core search for lesson 2. `[told 2026-10-21]`
-- did: section 2 rows; `origin` set to SSH; issues #1 (retitled, rewritten, relabeled enhancement),
-  #2 (retitled, closed), #8 and #14 (comments), **#15 filed** with a strict `xfail` test
-  (`tests/test_align.py::test_the_shared_core_search_leaves_hydrogens_out`); `msldprep/gui/README.md`
-  written and the README's GUI section shortened to point to it; `ISSUES_AND_PLANS.md` updated; vault
-  notes `learning-plan.md`, `lesson-01-...`, `lesson-02-...`, `design-notes.md` in
-  `/home/ziqiaoxu/obsidian/msld-prep/`. Nothing committed.
-- verified `[ran]`: full suite with tool variables, 226 passed, 0 skipped (57 s) before the new test;
-  `tests/test_align.py` 55 passed, 1 xfailed after it. The legacy `msld_mcs.MsldMCS`, run on copies of
-  `examples/1_FAAH` in the scratchpad, reproduces the committed `MCS_for_MSLD.txt` exactly; nothing was
-  written into `/home/ziqiaoxu/msld-py-prep` (run with `-B`). The GUI service on the demo: 33 aligned,
-  `ethanol` and `bad_smiles` fail with the messages quoted in the GUI README.
-- found: #15 (G19). Legacy `msld_mcs.py`: `emptyMatches` tests `matches[m]` with a stale `m`, so it only
-  checks the last ligand, and (iiH) reads a stale `tmplist`; neither changes FAAH's output (instrumented
-  scratch copy: no unresolved atoms). Not filed anywhere: the legacy repo is not ours. FAAH's
-  one-substituent site 2 comes from the input poses (17 of 32 have that phenyl rotated past 1.1 angstrom).
-- verified after the `xfail` test `[ran]`: full suite with tool variables, 226 passed, 1 xfailed.
-- not verified: the GUI README was not followed by anyone else (#8 item 4).
-- then (same session): the owner asked for the fix of #15 (their idea: no isotope labels on hydrogens).
-  Measured `[ran]` on the conftest ChEMBL set: today's core has 12 atoms (2 H) and 3 sites, two of them
-  hydrogen-only; stripping hydrogens alone gives 10 atoms, 4 sites, every core H in a fragment. So the
-  fix is two parts (heavy-atom search, plus an explicit rule for core hydrogens), written as a comment on
-  #15 and as design note (i). Recorded the owner's verdicts on (a), (b), (d); created
-  `docs/dev/DESIGN_NOTES.md` (copy of the vault note, links made plain); excluded `zoe_msld_prep.ipynb`;
-  committed by concern and pushed at the owner's request.
-- next session: #1 strict option, #10, then lesson 3 (CRN); #15 waits for the owner (it touches (e)).
-
-### 2026-10-16 claude-opus/claude-code/day-end-wrapup
-
-- asked: update all the docs, commit and push; push over SSH from now on. `[told 2026-10-16]`
-- owner checked `[told 2026-10-16]`: the new alignment (exact core placement) and `--reload` both work
-  well, and all drop-down toggles behave correctly in Safari, so the entries below are confirmed.
-- did: section 2 rows (SSH push rule, American English, today's push), section 3 push fact superseded,
-  G18 (WebKitGTK as a Safari check), section 5 brought to today; `ISSUES_AND_PLANS.md`: #2 core geometry,
-  deliberate behaviors, F-14 status, the done table. Comments on GitHub issues #2 (core geometry) and #8
-  (`--reload` in the README). Agent memory: SSH push rule, Monday reminder.
-- verified `[ran]`: before the docs commit, nothing unpushed, no other branches, no claims; 168 passed,
-  58 skipped without the tool variables.
-- not verified: the 58 CGenFF- and OpenBabel-backed tests after `f43e56d`.
-- next (Monday 2026-10-19): (1) ask the owner whether to work on #14 (faster MCS; profile first);
-  (2) run the full suite with the tool variables set, telling the owner first (login node);
-  (3) offer `git remote set-url origin git@github.com:Truman-Xu/msld-prep.git` again if `origin` is still https.
-
-### 2026-10-16 claude-opus/claude-code/gui-reload-deselect-summary
-
-- asked: (1) see GUI changes without restarting the server; (2) in Safari the "Settings" summary of
-  panel 3 opened only when clicked to the right of its text; (3) a second click on the selected analog
-  deselects it, leaving the reference alone in the 3D view. `[told 2026-10-16]`
-- did (uncommitted): `python -m msldprep.gui --reload` (uvicorn reload with a factory,
-  `create_app_from_env`, token handed over in `MSLDPREP_GUI_TOKEN`, not on the command line, which other
-  users can read); `/static/` answers with `Cache-Control: no-cache` so edited scripts show on a refresh;
-  `toggle()` in `app.js`; `summary` gets `user-select: none` and padding. README updated. Two tests.
-- verified `[ran]`: GUI tests 41 passed; with `--reload`, touching `service.py` restarted the server on the
-  same port and token; in WebKitGTK 2.54 (Safari's engine, `/usr/bin/python3` with `gi`, on Xvnc `:77`)
-  clicking the selected analog again clears the details and leaves only the reference in the view
-  (snapshot), arrow keys still select.
-- then: the owner confirmed "Settings" works in Safari but found the same on "2D structure" and that it
-  depends on scrolling. Cause `[ran]`: the hidden file inputs (`label.file input`, `position: absolute`)
-  had the page body as their containing block, so they stayed put while the left panel scrolled and lay
-  over whatever scrolled under them (the reference's input sits on the "2D structure" row at about 70 px
-  of scroll). Fixed with `label.file { position: relative }`; measured in WebKitGTK, the inputs now move
-  with their buttons. Not yet checked by the owner in Safari.
-- then: the owner set the rule that the GUI uses American English; "stereocentre(s)" was the only British
-  spelling in the GUI's text (reference info, stereo notes), now "stereocenter(s)". A sweep of `-ise`,
-  `-our`, `-yse`, `-tre` and doubled-`l` forms in `msldprep/gui/` found nothing else. The library's
-  docstrings (`align.py`) still say "centre"; the rule as given covers the GUI only.
-- found: WebKitGTK through PyGObject is a usable headless check of WebKit behaviour here, besides Firefox;
-  `elementFromPoint` alone missed this bug because WebKitGTK draws the inputs 1 px wide.
-
-### 2026-10-16 claude-opus/claude-code/frozen-core-embedding
-
-- asked: the owner saw in the GUI that the analogs' piperidine rings did not keep the reference's
-  geometry (entries 1 and 3 of `test_structures/stereoisomer`), and chose "B with fallback": put the core on
-  the reference's coordinates, keep it fixed, embed and optimize the rest. `[told 2026-10-16]`
-- did (uncommitted): `_embed_onto_reference` tries, in order, a fixed core on the reference's positions
-  (random start), a stiff tether (k 1000, random start), then RDKit's default start with the soft tether
-  (k 100); the first pose whose 3D stereo matches what the analog was given is kept (`_keeps_stereo`).
-  Tests: ring torsions of a 4,4'-bipiperidine toy over five seeds; the same versus opposite configuration.
-- found `[ran]`: not a stereo problem. The reference has no RDKit stereocentre; the rings came out as
-  inverted or twisted chairs (a conformation), because the default `coordMap` embed started the core
-  about 1.2 A off (2.8 A max) and the k 100 tether could not flip it back. Annotating chirality cannot
-  tell a chair from its inverted chair.
-- verified `[ran]`: 166 passed, 58 skipped (tool variables not set; the CGenFF-backed run was not done on
-  the login node); the owner's 22 analogs that finish the MCS within 4 s: core RMSD 0.000 for all, no
-  ring torsion off (before: 15 of 22 more than 30 degrees off), the fixed-core pose kept for every one; the
-  toy opposite-configuration analog falls back (RMSD 0.24), keeps its configuration and is flagged.
-- not verified: the tests with `MSLDPREP_CGENFF_PATH` and `MSLDPREP_OBABEL_PATH` set; the GUI in a browser
-  after this change. A pose that no attempt can give the right stereo is still kept (the last attempt),
-  as before, with no flag.
-- next: the owner reviews; commit (`Part of #2`) when asked; then the items of the entry below.
-
-### 2026-10-16 claude-sonnet/claude-code/orientation-stereo-limit
-
-- asked: remove the Uncharger option; close #5 to #7; limit the GUI to alignment with MCS; choose the
-  orientation of symmetric rings by the reference's substituents (#11); ensure stereochemistry from the
-  reference (#2, using `test_structures/stereoisomer`); git-ignore `test_structures/`; later in the turn: the
-  junction-tree idea for a faster MCS, and notes for the pocket and for next session.
-- did (commits, none pushed): `.gitignore` for `test_structures/` (also in `.git/info/exclude`);
-  `d013379` removes the Uncharger option (`Closes #12`); `9002a9e` default MCS limit of 10 s and
-  `mcs_timed_out` (`Closes #13`, found when a pair of two-piperidine molecules ran for minutes);
-  `56f697c` orientation search by substituent overlap (`Closes #11`), `0b6af57` GUI note;
-  `b51a361` stereo settled during alignment and reported, `a44e480` GUI display (`Part of #2`). Closed #5,
-  #6, #7 as built, with comments. Filed #13, #14. Reminders: #14 and memory notes. `[ran]`
-- verified `[ran]`: 218 passed with the tool variables set; the demo series (33 analogs): for 28 the first
-  match had the aniline ring flipped (halogen 3 to 6 A from the reference iodine), now 0.2 to 1.2 A;
-  toy stereo cases (same, opposite, unspecified, over four seeds); the owner's stereoisomer analogs; the
-  page's stereo notes in Firefox with WebGL, no JavaScript errors.
-- found: `FindMCS` can run for an hour on pairs of large molecules (#13, #14); the owner's reference has no
-  stereocentre, so its unspecified centres fall to the energy rule, which is noisy (one seed in five
-  flips because UFF energies differ by about 8 kcal/mol between poses); `RenumberAtoms` leaves ring info
-  uninitialized, which broke `GetSubstructMatches` (fixed with `GetSymmSSSR`); the node here is too old
-  for `node --check` on the page's script (`??`), so use the browser.
-- not verified: stereo through `decompose.py` and the writers (#2 stays open); the owner's series beyond
-  the three `panel_a` analogs; the speed of aligning large series (orientation and stereo search embed
-  several candidates per analog: 4.6 s for 34 demo analogs).
-- next: (1) **#14: faster MCS for large molecules, junction-tree idea (the owner's reminder)**; profile
-  first; (2) push the commits if the owner agrees; (3) decide whether #2 is narrowed to alignment or
-  continues into the writers.
-
-### 2026-10-14 claude-sonnet/claude-code/day-end-wrapup
-
-- asked: file an issue for the symmetric matches; wrap up; then commit and push the two docs,
-  update the logs, and set up a reminder to remove the "Remove charges from the reference" option.
-- did: filed #11 (symmetric match chosen arbitrarily; was P-1 in the log entries of this day) and
-  #12 (remove the Uncharger option, the reminder); replaced P-1 by #11 in `ISSUES_AND_PLANS.md`
-  and State; added F-13 and the reminder as a standing instruction; saved a memory note so the
-  next session raises it first. Wrap-up check: nothing unpushed, no stale branches, no claims. `[ran]`
-- out of date, not fixed here: #5, #6 and #7 still describe the first GUI plan (partly built,
-  partly superseded); #1 should be read again in the light of the protonated reference (its fused
-  rings are non-aromatic and `Uncharger` leaves +1).
-- next: (1) raise the reminder: remove the option (#12); (2) settle #5 to #7; (3) decide the rule
-  for #11. The learning plan (Q13) is still postponed.
-
-### 2026-10-14 claude-sonnet/claude-code/protonation-tolerant-matching
-
-- asked: relax the substructure match on protonation states, or log, match, align and restore
-  the protons; resolve it first.
-- did: read `sil.mol2` (63 atoms, 33 heavy) and `panel_a.smi` (3 analogs) locally and added
-  `panel_a.smi` to `.git/info/exclude` (it was not excluded). Compared MCS settings on them.
-  Rewrote `align.align_to_reference`: matches the `FindMCS` query back onto both molecules and
-  embeds with those pairs (`_embed_onto_reference`), so charges, hydrogen counts and isotopes
-  no longer matter (fixes #9); added `McsOptions.ignore_bond_orders` (`BondCompare.CompareAny`),
-  on by default in the GUI with a checkbox. Removed the charged-reference error hint and the
-  `xfail` markers. Nothing committed. `[ran]`
-- verified `[ran]`: 202 passed (tool variables set), 144 passed and 58 skipped (unset); the new
-  code reproduces the old atom maps and coordinates (within 0.03 angstrom) for 32 of 33 demo
-  analogs; with RDKit tautomer pairs from public chemistry (quinazolinone and its hydroxy form,
-  2-pyridone, an aminopyrimidine and its imino form) strict matching drops the one atom whose bond
-  order changes and ignoring bond orders recovers it, also with ring-matches-ring on; the page's
-  checkbox changes the core size in Firefox.
-- **not reproduced:** on `sil.mol2` with the three `panel_a.smi` analogs the current code already
-  matched 31 of 31, 32 of 32 and 33 of 34 heavy atoms with core RMSD 0.06 in every
-  setting, ring-matches-ring included; the reference carries the same `[nH]` as the analogs, and RDKit's
-  tautomers of one analog cost at most one atom. The whole-ring loss the owner describes was not seen.
-  An analog that shows it is needed.
-- **SUPERSEDED 2026-10-14 (same session) by the owner's screenshot and `silp.mol2`: reproduced and
-  explained.** The reference used in the GUI was `silp.mol2`, not `sil.mol2`: 64 atoms, three
-  charged nitrogens (net +3), and RDKit perceives its fused pyrazole and pyrimidinone rings as
-  **not aromatic** (alternating single and double bonds), while the analogs' rings are aromatic.
-  Under the old strict bond comparison 10 ring bonds of the fused system mismatch (aromatic against
-  single or double), and `completeRingsOnly` then drops both rings: core 20 of 32 heavy atoms, which is the
-  screenshot (bicycle not highlighted). `ringMatchesRingOnly` does not help (it is about ring
-  membership, not bond type). With `ignore_bond_orders` the core is 31, 32 and 33 atoms for the three
-  analogs, with or without removing charges. Removing charges left +1 (the file's N-methyl
-  pyrazole nitrogen is an iminium-like N+ in that Kekule form, which `Uncharger` cannot neutralize)
-  and does not change the matching. `[ran]`
-- found: P-1 (symmetric match chosen arbitrarily; one demo analog got a different atom map and a 4
-  angstrom different pose with the same core RMSD).
-- next: owner supplies an analog where the ring is lost, and the page's result for it; then
-  commit as: library change `Closes #9`, GUI option `Part of #6`, docs.
-
-### 2026-10-14 claude-sonnet/claude-code/gui-reference-2d
-
-- asked: which viewer the GUI uses and whether it can rotate bonds (for a manual tuning tool);
-  a collapsible 2D drawing of the reference in panel 1.
-- did: answered (3Dmol.js 2.4.2; no bond-rotation tool in it); added the 2D panel (collapsed
-  by default, remembered in `localStorage`, shows the matched core of the selected analog) and
-  one test; recorded the tuning tool as F-12 in `docs/dev/ISSUES_AND_PLANS.md`. Not committed;
-  no issue filed for F-12. `[ran]`
-- verified `[ran]`: 39 GUI tests pass; in Firefox with WebGL the panel is hidden before a
-  reference, appears collapsed after loading, opens on click, remembers its state across a
-  reload, and marks the matched core after aligning; no JavaScript error.
-- not verified: the full suite after this change (only the GUI tests were run).
-- next: owner decides on F-12 (an issue, and what \"minor misalignment\" looks like on real
-  data); commit this with `Part of #6`.
-
-### 2026-10-14 claude-sonnet/claude-code/gui-docs-issues-cleanup
-
-- asked: document the deliberate mol2 renaming and missing charges and plan an option for the
-  names; push the commits; rewrite #4 and #8; adopt `Closes #N`.
-- did: filed #10 (keep original atom names in the export, default unchanged); rewrote #4 (the
-  session service as built, its done-when met by `c7f7b0a` and `26817ab`, left open for the owner
-  to close) and #8 (README walk-through, export notes, troubleshooting, a person other than the
-  author follows it once); added the section \"Deliberate behaviors\" and F-11 to
-  `docs/dev/ISSUES_AND_PLANS.md`, a README sentence on the renaming, and the `Closes #N` rule to
-  `CONTRIBUTING.md`; pushed the two commits that were local. `[ran]`
-- not verified: #5, #6 and #7 still carry the first plan's text and were not rewritten (the
-  owner named #4 and #8 only); what CGenFF does with names that are unique but longer than four
-  characters (asked in #10).
-- next: `Closes #N` on the commit that finishes an issue; decide whether to close #4 and #3; look
-  at #5 to #7; the learning plan (Q13) when ready.
-
-### 2026-10-14 claude-sonnet/claude-code/gui-mol2-export
-
-- asked: commit by issue and push; file the issue for the unfixed bug; add mol2 saving (the
-  notebook's writer) and an option to write one structure per file (sdf or mol2). Also, in the
-  same turn: could WebGL be set up so the agent can check the visualization.
-- did: filed #9 (charged reference) and replaced its provisional ID `P-1` everywhere; made four
-  commits (#4 service, #6 page, #5 API, #9 documentation and xfail tests), checked each in a
-  throwaway worktree (all pass; the one failure there, `test_downstream_msld_prm_contract`, is
-  the sibling-directory expectation for `msld-py-prep`, not a defect), pushed them. Then
-  `AlignmentSession.export(fmt, which, include_reference, one_per_file)` replacing `export_sdf`,
-  `GET /api/export`, a Download section with format, reference and one-per-file options, mol2 via
-  `sybyl_typer.annotate_sybyl_types`, `assign_unique_atom_names`, `format_mol2_text` on a copy.
-  Set up WebGL (G17a). `[ran]`
-- verified `[ran]`: 190 passed, 2 xfailed (tool variables set); 132 passed, 58 skipped, 2 xfailed
-  (unset); OpenBabel's Python module reads the exported 34-structure mol2 and gives the right SMILES
-  for an analog; in Firefox with WebGL: 3D view renders (reference in gray or Jmol colors, analog core in orange, rest in
-  teal), the Download button produces sdf, mol2 and zip downloads (checked blob type, size and
-  file name), and says why when nothing is accepted; no JavaScript error.
-- not verified: opening the downloaded files from the real browser's download folder;
-  the mol2 in CHARMM/CGenFF (the writer is the notebook's, but charges are `NO_CHARGES` and the
-  reference's own mol2 atom names are replaced); very large series.
-- found: the reference's original atom names are not kept in the mol2 export (all names are
-  regenerated), and formal charges are not written (as in the notebook's writer).
-- next: owner pushes or asks for the push of the last two commits; look at issues #4 to #8 and
-  close or rewrite them against what was built; the learning plan (Q13) when the owner is ready.
-
-### 2026-10-14 claude-sonnet/claude-code/gui-charge-color-issues-doc
-
-- asked: GUI option to remove reference charges (`Uncharger`), a color-by-element toggle for the
-  reference, and a dev document of active issues and planned features (not a roadmap) starting
-  with the charged-atom matching failure.
-- did: `service.neutralize` and `AlignmentSession.set_neutralize_reference`, `PUT
-  /api/reference/neutralize`, a checkbox in the page; a "Color reference by element" toggle
-  (Jmol colors, gray when off, element chips in the legend, remembered in `localStorage`);
-  a hint on alignment errors caused by a charged reference; `docs/dev/ISSUES_AND_PLANS.md`
-  (template, active issues, planned features F-1 to F-10, open design questions, done list);
-  strict `xfail` tests for P-1; 7 new tests. Nothing committed; no GitHub issue created. `[ran]`
-- verified `[ran]`: 184 passed and 2 xfailed with the tool variables set; in headless Firefox
-  with a charged reference: alignment fails with the P-1 message, the checkbox neutralizes
-  (`net charge 1 to 0`, 29 to 28 atoms), alignment then succeeds, the color toggle shows element
-  chips (Br, C, N with Jmol colors) and H when hydrogens are shown, both settings survive a
-  reload, no JavaScript error before the reload.
-- not verified: the colored reference in the 3D view (no WebGL here, G17); `Uncharger` on
-  zwitterions or metals; neutralizing when the reference came from a mol2 with its own
-  charge model. Offline run (tool variables unset): 127 passed, 58 skipped, 2 xfailed.
-- found: P-1 only breaks when the **reference** is charged (a charged analog onto a neutral
-  reference aligns); `FindMCS` finds the structure by element but `PathToSubmol(useQuery=True)`
-  makes charged atoms require their charge, so `ConstrainedEmbed`'s own re-match fails.
-- next: owner decides: create the GitHub issue for P-1 (then replace `P-1` in the doc and the
-  `xfail` reason by the number); commit the GUI work; look at the 3D view.
-
-### 2026-10-14 claude-sonnet/claude-code/gui-demo-build
-
-- asked: build the alignment GUI for a demo soon; only the constrained embed onto the reference
-  is needed (no atom typing, no common core); the learning plan waits.
-- did: added `msldprep/gui/` (`service.py`, `app.py`, `__main__.py`, `static/index.html`,
-  `style.css`, `app.js`, bundled 3Dmol.js 2.4.2 with its licence files), `[web]` extra and
-  `httpx` in the `test` extra and `gui/static/*` package data in `pyproject.toml`, the README
-  section, `examples/gui_demo/analogs.txt` (SMILES derived from the public `2_ChEMBL` mol2 files,
-  35 lines incl. two that must fail), 26 tests (`tests/test_gui_service.py`,
-  `tests/test_gui_app.py`). This covers the work of issues #4, #5 and parts of #6, #7, #8 in one
-  slice, with the narrower scope (no Sybyl mol2 export, sdf only; one session per server,
-  not session ids). Nothing committed. `[ran]`
-- verified `[ran]`: 177 passed, 0 skipped with the tool variables set; 119 passed, 58 skipped
-  without; the live server over HTTP (403 without token, 200 with, 404/422 messages, export);
-  the page flow in headless Firefox with no JavaScript errors; 35 demo analogs align in 2.4 s.
-- not verified: the 3D view (`draw()`) in any browser (G17); behaviour in the owner's browser
-  through the tunnel; a wheel build with the static files; large series; the `Align again` pose
-  quality by eye; dark mode.
-- found: G16, G17. `core_atoms` and `reference_core_atoms` in the API are each sorted, so the two
-  lists are not index pairs (the analog-to-reference pairing is `CoreAlignment.atom_map`, not
-  sent). A realigned analog loses its accept/reject decision on purpose (new pose).
-- next: owner tries it through the tunnel and reports what the 3D view does; then commit (the
-  work is one concern per issue, so it can be split by #4/#5/#6); update issues #4 to #8 for the
-  narrower scope; decide whether to keep one-session-per-server.
-
-### 2026-10-12 claude-sonnet/claude-code/m0-align-api
-
-- asked: work on M0 (issue #3) after the handoff push.
-- did, in `msldprep/align.py` (additions only; no existing signature or output changed):
-  `align_to_reference(mol, ref_mol, *, mcs=McsOptions(), seed=DEFAULT_EMBED_SEED) -> CoreAlignment`
-  (core query mol, `atom_map` aligned-mol index to reference index, `rmsd`, `seed`);
-  `McsOptions(complete_rings_only, ring_matches_ring_only, timeout)`; `align_common_core` is now a
-  thin wrapper returning `.core`; `mol_from_mol2_text` and `mol_from_sdf_text` (explicit Hs,
-  sanitized, `AlignmentError` on unreadable, empty, several molecules, or no 3D coordinates).
-  15 new tests in `tests/test_align.py`. Committed as two commits at the owner's request (API: 144 passed on its own; loaders: 151 passed). `[ran]`
-- verified `[ran]`: 151 passed, 0 skipped with `MSLDPREP_CGENFF_PATH` and `MSLDPREP_OBABEL_PATH`
-  set (136 before); defaults reproduce the old result (`align_common_core` returns a core with the
-  same atoms and bonds); `rmsd` is read from RDKit's `EmbedRMS` mol property (the owner pointed this out; my first version recomputed it) and a test recomputes it from the coordinates to 1e-6; atom map is one-to-one with
-  matching elements.
-- not verified: `ConstrainedEmbed` determinism across atom orders, platforms or RDKit versions
-  (G3a); the atom map when the core matches the analog in several symmetric ways (the first
-  match is used, as RDKit's embed does; documented, not tested); behaviour with an MCS timeout that
-  actually fires; single-atom MCS (empty bond path, pre-existing).
-- found: G3a, G15. Issue #3 says the library "takes no random seed"; true of our wrapper, but RDKit
-  already seeds with 2342, so seed control is for choosing alternatives, not for fixing noise.
-- next: close #3 once the owner is satisfied (its three gaps are done: atom map and RMSD, seed and MCS options, text loaders); then M1 (#4), the session service. Issue #3 says the library "takes no random seed" (see found).
-
-### 2026-10-12 claude-sonnet/claude-code/gui-plan-and-learning-intent
-
-- asked: plan item 1 (web GUI for the notebook's alignment step) and log the intent for item 2
-  (learning plan for the legacy pipeline) for the next session.
-- did: read-only exploration of `msldprep/align.py`, `analog_prep.py`, `pipeline.py`, the CLI,
-  the notebook's code-cell structure (no structures read out or copied), the legacy
-  `msld-py-prep`, and the workshop notebook; wrote the plan file named in section 2; recorded
-  the owner's decisions in section 2 and the item 2 intent and seed in Q13. No code, config or
-  library file changed; nothing committed; no issues created. `[ran]`/`[read]`
-- verified: `fastapi`, `uvicorn`, `starlette`, `pydantic`, `multipart` and `flask` are not
-  importable in `crimm-dev`; `jinja2` 3.1.6 is `[ran 2026-10-12]`.
-- not verified: any claim in Q13 beyond reading (no legacy code was run); the GUI plan's
-  assumptions about process-pool alignment, browser behaviour and series size; the legacy
-  `NSUBS` versus msld-prep `nsubs` comparison beyond file listings.
-- found: `align_common_core` returns no atom map or RMSD and takes no seed (plan, gaps 1 and 2);
-  the notebook's alignment needs no CGenFF.
-- later the same day, at the owner's request: created the label `gui` and issues #3 to #8
-  (M0 to M5, bodies in the agent-task form; the plan's milestone table is the source), installed
-  the GUI packages into `crimm-dev` (section 3), committed this file. Not pushed. `[ran]`
-  The M2 issue does not yet name httpx for the tests; it is already installed.
-- (superseded by the line above) next: owner approves, then: GitHub issues for M0 to M5 (ask first), `[web]` extra and env
-  decision (ask first), then M0. Item 2: write the learning plan (Q13).
-
-### 2026-10-12 claude-sonnet/claude-code/crimm-hotfix-path
-
-- asked: point this project's crimm at the worktree `/home/ziqiaoxu/crimm-hotfix` (the
-  `RDKConverter-Het` hotfix) and remember it.
-- did: added `env` with `PYTHONPATH=/home/ziqiaoxu/crimm-hotfix` and
-  `PYTHONDONTWRITEBYTECODE=1` to `.claude/settings.local.json` (local, git-excluded; no tracked
-  file or source path changed). Added the fact to section 3. crimm was not edited. `[ran]`
-- verified: with that `PYTHONPATH`, `crimm.__file__` is `/home/ziqiaoxu/crimm-hotfix/crimm/__init__.py`
-  and `crimm.IO.RTFParser`, `crimm.IO.PRMParser` import; without it, `/home/ziqiaoxu/crimm/...`.
-  Offline suite: 78 passed, 58 skipped (tool variables unset). `[ran]`
-- not verified: the 58 tool-backed tests against the hotfix; `align.ipynb` past cell 9 (Q12);
-  that the `env` block reaches shells outside Claude Code (it does not; export `PYTHONPATH` by
-  hand there).
-- next: when the hotfix is published (Q12), remove the `env` block and re-check section 3.
-
-### 2026-10-08 claude-sonnet/claude-code/first-push
-
-- asked: commit the handoff edit, push all commits, turn `TODO.md` into GitHub issues, update the
-  dev docs.
-- before the push: the owner had not answered Q11, so I checked it. All 375 tracked files under
-  `examples/2_ChEMBL` are byte-identical to files tracked in the public
-  `Vilseck-Lab/msld-py-prep` (`git ls-remote` works anonymously); no tracked file is not in
-  upstream; the `configs/` SMILES are the quinazoline anilines of that public example; a scan
-  of tracked files for tokens, passwords and keys found nothing; the only email is the one in
-  `pyproject.toml` (also in crimm's public one); no notebook, `.crd`, `.mol2`, `.smi`, or
-  `analog` file is tracked outside `examples/2_ChEMBL` and `msldprep/`/`tests/` code. `[ran]`
-- did: created the label `correctness` and issues #1 (protonation states of reference and analogs
-  can mismatch) and #2 (respect chirality) from `TODO.md`, in the form of the agent-task issue
-  template. They contain only what `TODO.md` says plus pointers to code; nothing was reproduced,
-  and both say so. Fixed this file's stale lines (commit count, remote, editable-crimm fact,
-  G8, G14, Q11). Committed, then pushed with `git push -u origin main`. `[ran]`
-- not done: `TODO.md` itself was not deleted or edited; no milestones or assignees; no branch
-  protection; no CI; `ROADMAP.md` and `NOTES.md` (the owner will ask).
-- verified: see the push result in State (`git status`, `git log origin/main`) `[ran]`.
-- found: crimm's editable install is in the user site, not in the env (section 3).
-- next: `ROADMAP.md` and `NOTES.md` when the owner asks; milestones mirror its phases; the
-  reminder about `RDKConverter-Het` (Q12) is in crimm's handoff.
-
-### 2026-10-08 claude-sonnet/claude-code/msld-prep-intro
-
-- asked: record in crimm's dev docs that this project needs the `RDKConverter-Het` hotfix, so
-  crimm's agents remind the owner when it is published; this project may now be named there.
-- did: edited crimm's `docs/dev/AGENT_HANDOFF.md` only (details in its own log entry with the
-  same title). Here: marked the "log this project in crimm" instruction done, added the
-  hotfix instruction, updated Q12 and the Orientation line on the crimm dependency. Not
-  committed in either repository. `[ran]`
-- verified: the failing line of the notebook (`RDKitConverter.py:664`, `pdbx_description`) is
-  the one `8075b75` guards `[read]`.
-- not verified: the notebook with the fix applied; whether the first hunk of `8075b75` is also
-  needed.
-- crimm: one file edited with the owner's permission; nothing committed there. Another
-  session was editing the same file; I re-read it before writing and changed only my lines.
-- next: unchanged (Q11 and the push).
-
-### 2026-10-08 claude-sonnet/claude-code/repo-config (entry 2)
-
-- asked: add `examples/` and commit; make the directory `msld-prep` with the old name kept as a
-  symlink; keep `crimm-dev`; move the remaining hard-coded tool paths to environment
-  variables; make the notebook self-contained and strip its outputs. Then: **the notebook and
-  its inputs contain unpublished structures; remove the notebook from the commits and roll
-  back the commits that contain it before anything is pushed.**
-- did:
-  - committed `examples/2_ChEMBL`; moved the OpenBabel path (tests) and CGenFF paths (CLI
-    default, root script, example config) to `MSLDPREP_OBABEL_PATH`, `MSLDPREP_CGENFF_PATH` and
-    `MSLDPREP_CGENFF_BASE_PRM`; renamed the directory to `/home/ziqiaoxu/msld-prep` with a
-    relative symlink at the old name;
-  - made and then **withdrew** a commit that added the notebook's three input files and a
-    stripped notebook. Rollback: saved the original notebook; `git reset --hard` to the commit
-    before it; `git filter-branch --index-filter` over the three remaining commits to drop
-    `align.ipynb` and the copied inputs and to remove another user's directory path from this
-    file; deleted the `refs/original` backup; `git reflog expire --expire=now --all`;
-    `git gc --prune=now`; restored the original notebook as an untracked file; added it, and
-    `analogues.txt`, `sil.*`, `cellz*.yaml` to `.git/info/exclude`; deleted the scratch copies of
-    the notebook and the copied inputs; updated this file and `docs/dev/BEST_PRACTICES.md`;
-  - the working tree copies of the inputs were removed by the reset (the originals were not
-    touched).
-- verified `[ran]`: the restored notebook's git blob hash equals the one in the first commit
-  (`9674a79`, size 8,407,017 bytes, the size the file had when the session began);
-  `git rev-list --all --objects` lists no notebook, no copied input and no `.ipynb`;
-  `git grep` over every reachable commit finds no other user's name or path; the removed blob
-  is not in the object store (`git cat-file -e` exits 1); `git fsck` prints nothing;
-  136 passed with the three variables set, 78 passed and 58 skipped with them unset (run before
-  the rollback; the rollback touched no code).
-- not verified: that no other copy of the analog structures remains in the Claude session
-  transcripts or tool outputs on this machine (the scratch directory was cleaned, the
-  transcripts were not touched); `examples/2_ChEMBL` and the test SMILES are public (Q11);
-  a clone of the repository; any push.
-- found: G12 to G14, Q11, Q12.
-- mistakes: I committed the notebook's original, with its outputs, in the first commit and
-  copied the notebook's inputs into the repository before the owner confirmed they could be
-  published. Both are removed, and no push happened. I also deleted my scratch copy of the
-  previous handoff before reusing it, so this file was rebuilt from the pre-notebook version
-  and the entries above.
-- next: the owner answers Q11 (public status of `examples/2_ChEMBL`, `configs/`, test SMILES)
-  and says when to push. `ROADMAP.md`, `NOTES.md` and the crimm handoff entry on request.
-
-### 2026-10-08 claude-sonnet/claude-code/repo-config
-
-- asked: apply the owner's answers to Q1 to Q8, configure the project further, and log it.
-- did, each as asked:
-  - Q1: added `LICENSE` (GPLv3, the same text as crimm's, copied; crimm not modified), the
-    `license` field and classifier in `pyproject.toml`, and a README section.
-  - Q2: `git remote add origin https://github.com/Truman-Xu/msld-prep.git`. Not fetched, not
-    pushed. Added the project URLs to `pyproject.toml`; the issue-tracker link in CONTRIBUTING.
-  - Q3: `.gitignore` now ignores `build.*/` and `work.*/`. `align.ipynb` was put in the commit
-    (withdrawn later the same day, see entry 2).
-    Everything else the owner left undecided stays untracked.
-  - Q4: made the first commit as one snapshot of the files listed in State. Local only.
-  - Q5: project name `msld-prep` in `pyproject.toml`, README, AGENTS, BEST_PRACTICES. Package
-    name and directory unchanged (Q5).
-  - Q6: `crimm` stays an unpinned dependency, with a comment saying why.
-  - Q7: `tests/test_analog_prep.py` reads `MSLDPREP_CGENFF_PATH` and
-    `MSLDPREP_CGENFF_BASE_PRM`, then falls back to `cgenff` on `PATH`; otherwise the tests skip
-    with a reason that names the variable.
-  - Q8: checked `crimm-dev` imports every dependency; deleted `environment-dev.yml` (mine, never
-    built); CONTRIBUTING, README and AGENTS say to use `crimm-dev`.
-  - Added `[tool.setuptools.package-data]` to `pyproject.toml`: without it a wheel omits
-    `msldprep/writers/templates/*.tmpl`, which `writers/alf_script.py` reads at run time.
-  - Updated this file (header, orientation, standing instructions, environment, gotchas G8,
-    G11, G12, state, open questions) and the other docs to match.
-- verified `[ran]`: 136 passed with `MSLDPREP_CGENFF_PATH` set; with it unset,
-  the full suite gives 131 passed, 5 skipped; 136 passed against crimm 2026.2.2
-  from PyPI (scratch install, `--no-deps`, first on `PYTHONPATH`); `pyproject.toml` parses
-  with setuptools; `pip wheel . --no-deps` on a scratch copy builds `msld_prep-0.1.0` containing
-  the `.tmpl` templates and `LICENSE`; `.gitignore` matches `build.malic` and `work.malic`.
-- not verified: a clone of the commit (it lacks `examples/`, G11); `pip install -e .` and
-  installing the wheel; the GitHub forms (nothing pushed).
-- crimm: not edited. Read: `LICENSE` (copied), `git describe`, `pyproject.toml` version. All
-  Python runs used `-B`; no new `.pyc` files were written there.
-- found: G11, G12, Q9, Q10. `crimm-dev` has crimm 2024.7a2 editable from the local checkout,
-  while the dependency is meant to be the PyPI release (section 3).
-- next: the owner decides Q3, Q5 (directory rename), Q9 and Q10, and says when to push. Then
-  `ROADMAP.md` and `NOTES.md`, and the entry in crimm's handoff, when the owner asks.
-
-### 2026-10-08 claude-sonnet/claude-code/repo-setup
-
-- asked: set up this project like crimm (the first message said "as `crimm` in
-  `/home/ziqiaoxu/crimm/`"; the owner then clarified: a separate repo, configured the way crimm
-  is), write the agent instructions, write no `ROADMAP.md` or `NOTES.md`, and touch nothing in
-  crimm.
-- did: wrote the files listed in STATE under `agent_setup_files_written_2026-10-08`, plus three
-  personal files excluded from git (`CLAUDE.local.md`, `.claude/commands/wrapup.md`,
-  `.claude/settings.local.json`) and the matching lines in `.git/info/exclude`. The layout and
-  wording follow crimm's `AGENTS.md`, `CONTRIBUTING.md`, handoff, best practices, issue forms,
-  `CODEOWNERS` and `wrapup` command, adapted to this project. No library, test or config file
-  was changed. `[ran]`
-- verified: the offline suite, 136 passed and 0 skipped, in `crimm-dev` (first run: `crimm-dev-new`, see section 3); `pyproject.toml`
-  and `environment-dev.yml` parse; `setuptools.find_packages` finds `msldprep` and
-  `msldprep.writers`. Package facts in Orientation come from reading module docstrings and
-  imports. `[ran]`, `[read]`
-- not verified: `pip install -e .` and a wheel build; `conda env create -f environment-dev.yml`;
-  the suite in any other env; the dependency pins in `pyproject.toml`; whether the CLI runs end
-  to end (only the tests were run); the `.github` forms on GitHub (no remote).
-- crimm: nothing in it was edited. I read its `AGENTS.md`, `CONTRIBUTING.md`, `pyproject.toml`,
-  `docs/dev/AGENT_HANDOFF.md`, `BEST_PRACTICES.md`, `README.md`, `.github/`, `.claude/` and
-  `.git/info/exclude`, and `git status`, `git branch --show-current`. One run that imported
-  crimm without `python -B` refreshed 41 gitignored `.pyc` files there (G1). I also read the
-  owner's `/home/ziqiaoxu/obsidian/crimm/agent-preferences.md`; I did not read the licensing
-  note.
-- found: G1 to G10 and Q1 to Q8.
-- next: the owner decides Q1 to Q4, asks for the first commit, and asks for `ROADMAP.md` and
-  `NOTES.md` and the entry in crimm's handoff when ready.
-
-SUPERSEDED 2026-10-08 by claude-sonnet/claude-code/repo-config: Q1 to Q8 are answered;
-`environment-dev.yml` was deleted (use `crimm-dev`); `crimm-dev-new` no longer exists.
+## 5. State, claims, open questions and log
+
+These change every session, so they are not kept in this file. Since 2026-11-07 `[told]`:
+
+- **State, claims and the log** are in the open issue labelled `agent-log`, pinned on the
+  issue list (first one: #27). Its description holds Claims and State, rewritten in place;
+  each comment is one session's log entry. Find it with
+  `gh issue list --label agent-log --state open`.
+- **Open questions** are issues labelled `question`. Former questions still cited elsewhere:
+  Q12 is #25, Q13 is #26 (cited as "handoff Q13" in `DESIGN_NOTES.md` and
+  `ISSUES_AND_PLANS.md`). Q3 was dropped: `TODO.md` no longer exists. The others were
+  answered.
+- **The earlier log**, 2026-10-08 to 2026-11-07, with State, Claims and the open questions as
+  they stood, is sections 5 to 8 of this file at commit 2df1ac9:
+  `git show 2df1ac9:docs/dev/AGENT_HANDOFF.md`.
