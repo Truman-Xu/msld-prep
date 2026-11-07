@@ -7,7 +7,7 @@ first; humans read it second.
 schema: agent-handoff/1
 repo: github.com/Truman-Xu/msld-prep   # public; first push 2026-10-08
 default_branch: main
-last_updated: 2026-11-02
+last_updated: 2026-11-07
 ```
 
 ## 0. Protocol
@@ -237,7 +237,7 @@ Things that cost a previous agent time or would produce wrong results silently.
 
 ## 5. State
 
-Rewrite in place. True as of `2026-10-16` (end of day), except where a line says otherwise; lines marked 2026-10-21, 2026-10-28, 2026-10-29 or 2026-10-30 were updated then.
+Rewrite in place. True as of `2026-10-16` (end of day), except where a line says otherwise; lines marked 2026-10-21, 2026-10-28, 2026-10-29, 2026-10-30 or 2026-11-07 were updated then.
 
 ```yaml
 git:
@@ -299,11 +299,15 @@ not_written_on_purpose:
   - docs/dev/ROADMAP.md
   - docs/dev/NOTES.md
   - CI workflow
-test_suite: {passed: 253, skipped: 2, xfailed: 0, date: 2026-11-02, env: crimm-dev, tool variables: set}   # the 2 skips: legacy contract tests under pandas 3 (#17)
-test_suite_without_tool_variables: {passed: 192, skipped: 63, xfailed: 0, date: 2026-11-02}
+test_suite: {passed: 253, skipped: 2, xfailed: 0, date: 2026-11-02, env: crimm-dev, tool variables: set}   # the 2 skips: legacy contract tests under pandas 3 (#17); same counts on the second machine 2026-11-07
+test_suite_without_tool_variables: {passed: 192, skipped: 63, xfailed: 0, date: 2026-11-02}   # same on the second machine 2026-11-07
 env: crimm-dev                     # no separate env file
-crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul; sessions here import crimm 1816fbb from the worktree (section 3)
+crimm_dependency: latest PyPI release, unpinned   # pin after the crimm overhaul; cluster sessions import crimm 1816fbb from the worktree (section 3); on the workstation (2026-11-07) crimm is the editable checkout, whose branches all contain master b7a2b6e (the #59 fix), so no override there
 directory: /home/ziqiaoxu/msld-prep   # /home/ziqiaoxu/msld-prep-tools is a symlink to it (G11)
+working_clone_2026-11-07: development moved to a second machine, the owner's workstation; its clone, env, tool paths
+           and push access are in CLAUDE.local.md (untracked, kept in sync on both machines). Section 3 still describes
+           the cluster clone above, which stays and backs the published msld-prep-tools path: after a push from the
+           workstation, fast-forward it (git pull --ff-only)
 library_code_changed_by_agents: since 2026-10-12, msldprep/align.py (align_to_reference, McsOptions, orientation, stereo, exact core placement) and the new msldprep/gui/; see the log
 code_changed_by_agents_2026-10-08:
   - tests/test_analog_prep.py, tests/test_sybyl_typer.py (tool paths from environment)
@@ -357,6 +361,29 @@ Newest first. Append only. Template:
 - found:
 - next:
 ```
+
+### 2026-11-07 claude-opus/hermes/move-to-workstation
+
+- asked: move development from the cluster to the owner's workstation, set up the same way as crimm there
+  (project facts, synced agent memory, end-of-day wrap-up); copy `align.ipynb`, `test_structures/` and
+  `papers/` across; set up push access for this repository only. Update LOG and STATE. `[told 2026-11-07]`
+- did: nothing in tracked files except this entry and STATE. On the workstation: a clone of `main` at
+  `b477316`; the cluster clone's `.git/info/exclude` entries copied in (G12: a fresh clone has none, so the
+  unpublished series was unprotected until then); the GUI packages added to its `crimm-dev`; tool
+  variables set in the env and its Jupyter kernel; the legacy `msld-py-prep` cloned beside the repository
+  (same commit as the cluster's). Machine facts went into `CLAUDE.local.md`, which is now kept identical on
+  both machines together with `.claude/commands/` and the agent memory directory.
+- verified `[ran]`: suite on the workstation 253 passed, 2 skipped (tool variables set), 192 passed,
+  63 skipped without, the same as on the cluster on 2026-11-02; the three copied paths match the cluster's
+  by sha256 (12 files) and are ignored by git; fetch and a dry-run push to this repository work from the
+  workstation, and the same credential is refused write access to crimm.
+- not verified: `align.ipynb` on the workstation (it reads absolute cluster paths, G13). The GUI in a
+  browser on the workstation.
+- found: on the workstation crimm is the editable checkout of its own clone, so whatever branch is checked
+  out there decides what msldprep imports (as G2 on the cluster); on 2026-11-07 every branch seen contained
+  crimm `b7a2b6e` (#59). The cluster clone stays at the same commit and backs the published path (G11); it
+  is fast-forwarded after a push from the workstation, never edited in parallel.
+- next: unchanged from 2026-11-02: #24, #22, #23, #20, #21 one at a time; the #8 reader's feedback; lesson 5.
 
 ### 2026-11-02 claude-opus/claude-code/fix-19-16-17-8
 
